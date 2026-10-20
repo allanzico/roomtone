@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\WithoutTimestamps;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+/**
+ * @property int $id
+ * @property string $artist
+ * @property string $title
+ * @property string|null $youtube_video_id
+ * @property int|null $bpm
+ * @property int $energy
+ * @property string|null $qloo_artist_id
+ */
+#[Fillable(['artist', 'title', 'youtube_video_id', 'bpm', 'energy', 'qloo_artist_id'])]
+#[WithoutTimestamps]
+class Track extends Model
+{
+    /**
+     * @return HasMany<SetItem, $this>
+     */
+    public function setItems(): HasMany
+    {
+        return $this->hasMany(SetItem::class);
+    }
+}
