@@ -73,3 +73,14 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - `three` is pinned to 0.182.x: R3F 9.8 still creates a `THREE.Clock`, which logs a deprecation warning on three ≥ 0.183. Bump when R3F moves to `THREE.Timer`.
 - `room/Effects.tsx` falls back to 8-bit buffers on software renderers (SwiftShader/llvmpipe, i.e. hardware acceleration off), where HDR bloom renders black.
 - Dev keys on the host screen: G add fake guest, N next track (played track loops to the end of the queue until the server owns the set), E cycle energy, H toggle the shortcut hint.
+
+## Qloo API notes (verified live, Oct 2026)
+
+- Client: `app/Services/Qloo/QlooClient.php`: `candidates()` (search), `artists()` (insights), `tags()`. Everything is cached forever in the app cache; failures throw `QlooException` and are never cached. Config: `QLOO_API_KEY`, `QLOO_API_URL` (hackathon server; the key only works there).
+- Never commit Qloo response data (Qloo terms): no fixtures or seeds built from real responses. Tests use `Http::fake`.
+- `/search` is lexical and mixed-type, and ignores `limit`. It is a list of candidates for the agent to choose from, never an answer: "Alfama" gives Alfamart, "jollof rice" gives Damien Rice.
+- Cities (locality/destination) are rejected as signals (400). Pass the city name as `location` instead. Food/dish tags as artist signals are silently ignored; a restaurant entity works as a loose bridge.
+- Pooling every guest into one insights call gives a mush skewed to the biggest group. Call per guest and let the agent balance the set.
+- Steer with `QlooClient::MOODS` (`style:qloo:calm` / `energetic`) and genre tags from `tags()`. Do not use `genre:music:{upbeat,danceable,chill}`.
+- Artists carry `notable_songs` and tags but no BPM, energy or per-result reason. Those come from the agent.
+- Insights calls take about 3.5–4.5s cold, so call them from queue jobs, not requests.

@@ -28,6 +28,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'qloo' => [
+        'key' => env('QLOO_API_KEY'),
+        'url' => env('QLOO_API_URL', 'https://hackathon.api.qloo.com'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
