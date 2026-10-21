@@ -1,29 +1,23 @@
-import { CanvasTexture, Color, SRGBColorSpace } from 'three';
+import {
+    CanvasTexture,
+    CustomBlending,
+    OneFactor,
+    SRGBColorSpace,
+    SrcAlphaFactor,
+    ZeroFactor,
+} from 'three';
 
-// The room's mood runs from cool Atlantic blue (energy 1) through violet to warm ember (energy 5).
-const COOL = new Color('#2F6BFF');
-const MID = new Color('#9B4DFF');
-const WARM = new Color('#FF5A2E');
-
-// Background ink: blue-black when calm, wine-black at peak.
-const INK_COOL = new Color('#03060F');
-const INK_WARM = new Color('#0D050B');
-
-/** Write the energy colour for `heat` (0 calm – 1 peak) into `out`. */
-export function energyColor(heat: number, out: Color): Color {
-    return heat < 0.5
-        ? out.lerpColors(COOL, MID, heat * 2)
-        : out.lerpColors(MID, WARM, (heat - 0.5) * 2);
-}
-
-export function inkColor(heat: number, out: Color): Color {
-    return out.lerpColors(INK_COOL, INK_WARM, heat);
-}
-
-/** CSS version of the energy colour for an integer energy level (1–5), for the HUD. */
-export function energyCss(energy: number): string {
-    return `#${energyColor((energy - 1) / 4, new Color()).getHexString()}`;
-}
+/**
+ * Additive glow for a transparent canvas: adds light to the colour but leaves alpha alone,
+ * so the browser composites it as pure light over the CSS space behind (no hard disc edge).
+ */
+export const glowBlending = {
+    blending: CustomBlending,
+    blendSrc: SrcAlphaFactor,
+    blendDst: OneFactor,
+    blendSrcAlpha: ZeroFactor,
+    blendDstAlpha: OneFactor,
+} as const;
 
 let glow: CanvasTexture | null = null;
 
@@ -49,8 +43,8 @@ export function glowTexture(): CanvasTexture {
             size / 2,
         );
         g.addColorStop(0, 'rgba(255,255,255,1)');
-        g.addColorStop(0.18, 'rgba(255,255,255,0.55)');
-        g.addColorStop(0.45, 'rgba(255,255,255,0.14)');
+        g.addColorStop(0.25, 'rgba(255,255,255,0.6)');
+        g.addColorStop(0.6, 'rgba(255,255,255,0.15)');
         g.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, size, size);

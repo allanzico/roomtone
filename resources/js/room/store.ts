@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { computeStage } from './stage';
+import type { Stage } from './stage';
 import type {
     Cluster,
     Guest,
@@ -20,11 +22,18 @@ type RoomState = {
     energy: number;
     /** 0–1. Driven by a slow "breathing" sine for now; the host mic replaces it later. */
     audioLevel: number;
+    /** Host pressed pause on the phone. Playback arrives in Phase 4; for now it only shows. */
+    paused: boolean;
+    /** Realtime connection dropped (Phase 2+). The last state stays on screen. */
+    reconnecting: boolean;
+    stage: Stage;
     init: (props: HostRoomProps) => void;
     addGuest: (guest: Guest) => void;
     nextTrack: () => void;
     setEnergy: (energy: number) => void;
     setAudioLevel: (level: number) => void;
+    togglePaused: () => void;
+    setStage: (stage: Stage) => void;
 };
 
 export const useRoom = create<RoomState>()((set) => ({
@@ -35,6 +44,12 @@ export const useRoom = create<RoomState>()((set) => ({
     queue: [],
     energy: 3,
     audioLevel: 0,
+    paused: false,
+    reconnecting: false,
+    stage: computeStage(
+        typeof window === 'undefined' ? 1920 : window.innerWidth,
+        typeof window === 'undefined' ? 1080 : window.innerHeight,
+    ),
 
     init: (props) =>
         set({
@@ -66,6 +81,10 @@ export const useRoom = create<RoomState>()((set) => ({
     setEnergy: (energy) => set({ energy: clampEnergy(energy) }),
 
     setAudioLevel: (audioLevel) => set({ audioLevel }),
+
+    togglePaused: () => set((state) => ({ paused: !state.paused })),
+
+    setStage: (stage) => set({ stage }),
 }));
 
 function clampEnergy(energy: number): number {
@@ -81,19 +100,4 @@ export function dominantClusterId(guest: Guest | undefined): number | null {
     return guest.clusterWeights.reduce((best, w) =>
         w.weight > best.weight ? w : best,
     ).clusterId;
-}
-
-/** The colour of the cluster a track was picked from: its reason guest's dominant cluster. */
-export function trackColor(
-    state: Pick<RoomState, 'guests' | 'clusters'>,
-    item: SetItem | null,
-): string | null {
-    if (!item) {
-        return null;
-    }
-
-    const guest = state.guests.find((g) => g.id === item.reasonGuestId);
-    const clusterId = dominantClusterId(guest);
-
-    return state.clusters.find((c) => c.id === clusterId)?.color ?? null;
 }

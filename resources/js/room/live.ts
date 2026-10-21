@@ -9,11 +9,13 @@ export const live = {
     energy: 3,
     /** Smoothed energy mapped to 0 (calm) – 1 (peak). */
     heat: 0.5,
-    /** World position of every guest orb, written by each orb every frame. */
-    orbPositions: new Map<number, Vector3>(),
+    /** Current (sprung) centre and radius of every island and the ember, in world units. */
+    islands: new Map<number, { x: number; y: number; r: number }>(),
+    /** World position of every guest point, written by each point every frame. */
+    points: new Map<number, Vector3>(),
 };
 
-/** Multiplier for orbit and drift speed at the current energy. */
+/** Multiplier for wobble speed at the current energy. */
 export function tempo(): number {
-    return 0.35 + live.heat * 1.6;
+    return 0.6 + live.heat * 0.8;
 }

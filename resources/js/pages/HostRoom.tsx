@@ -1,11 +1,14 @@
 import { Head } from '@inertiajs/react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Hud } from '@/room/Hud';
 import { live } from '@/room/live';
 import { Scene } from '@/room/Scene';
+import { computeStage } from '@/room/stage';
+import { Starfield } from '@/room/Starfield';
 import { useRoom } from '@/room/store';
 import type { HostRoomProps } from '@/room/types';
 import { useDevKeys } from '@/room/useDevKeys';
+import '../../css/tokens.css';
 import '@/room/room.css';
 
 const HINT_KEY = 'roomtone:hide-key-hint';
@@ -36,6 +39,7 @@ export default function HostRoom(props: HostRoomProps) {
         return true;
     });
 
+    const layout = useRoom((s) => s.stage.layout);
     const [hintHidden, setHintHidden] = useState(readHintHidden);
 
     const toggleHint = useCallback(() => {
@@ -48,10 +52,25 @@ export default function HostRoom(props: HostRoomProps) {
 
     useDevKeys(toggleHint);
 
+    useEffect(() => {
+        const onResize = () =>
+            useRoom
+                .getState()
+                .setStage(computeStage(window.innerWidth, window.innerHeight));
+
+        onResize();
+        window.addEventListener('resize', onResize);
+
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
     return (
         <>
             <Head title={props.event.name} />
-            <main className="rt-room">
+            <main className="rt-room" data-layout={layout}>
+                <div className="rt-space" aria-hidden="true">
+                    <Starfield />
+                </div>
                 <Scene />
                 <Hud showHint={!hintHidden} onDismissHint={toggleHint} />
             </main>
