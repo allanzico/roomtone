@@ -7,6 +7,8 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Sleep;
 use InvalidArgumentException;
 
 /**
@@ -20,6 +22,9 @@ use InvalidArgumentException;
  *
  * Responses are cached forever in the app cache (the Qloo terms allow private server-side caching). Failures are
  * never cached.
+ *
+ * Qloo answers HTTP 429 at about 4 parallel calls, so every real call (not cache hits) takes one of CONCURRENCY
+ * slots, shared by all workers through cache locks, and a 429 is retried with a growing wait.
  */
 class QlooClient
 {
@@ -34,6 +39,18 @@ class QlooClient
         'calm' => 'urn:tag:style:qloo:calm',
         'energetic' => 'urn:tag:style:qloo:energetic',
     ];
+
+    /** Real Qloo calls allowed at once across every worker. Zero 429s at 3 in the spikes; 429s at about 4. */
+    public const CONCURRENCY = 3;
+
+    /** Attempts per call when Qloo answers 429; the wait grows by a second each time. */
+    private const RATE_LIMIT_ATTEMPTS = 5;
+
+    /** How long a call waits for a free slot before giving up. */
+    private const SLOT_WAIT_SECONDS = 120;
+
+    /** A slot frees itself after this long, so a crashed worker cannot hold it forever. Covers 3 tries of 30s. */
+    private const SLOT_TTL_SECONDS = 120;
 
     private const ARTIST = 'urn:entity:artist';
 
@@ -114,6 +131,20 @@ class QlooClient
     }
 
     /**
+     * Artists for one taste signal, as candidates() labels it: an entity id, or a city name passed as location.
+     *
+     * @return list<array{id: string, name: string, popularity: float, songs: list<string>, tags: list<string>}>
+     */
+    public function artistsFor(string $kind, string $value, int $take = 15): array
+    {
+        return match ($kind) {
+            'entity' => $this->artists([$value], take: $take),
+            'location' => $this->artists(location: $value, take: $take),
+            default => throw new InvalidArgumentException("Unknown signal kind: {$kind}"),
+        };
+    }
+
+    /**
      * Tag lookup, for genres the host asks for in plain language ("more Afrobeats").
      *
      * @return list<array{id: string, name: string}>
@@ -156,17 +187,59 @@ class QlooClient
             throw new QlooException('QLOO_API_KEY is not set.');
         }
 
-        try {
-            $response = $this->http($key)->get($path, $params)->throw();
-        } catch (RequestException $e) {
-            $detail = $e->response->json('errors.0.message') ?? $e->response->reason();
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                $response = $this->inSlot(fn () => $this->http($key)->get($path, $params));
+            } catch (ConnectionException $e) {
+                throw new QlooException("Qloo {$path} is unreachable: {$e->getMessage()}", 0, $e);
+            }
 
-            throw new QlooException("Qloo {$path} failed ({$e->response->status()}): {$detail}", $e->response->status(), $e);
-        } catch (ConnectionException $e) {
-            throw new QlooException("Qloo {$path} is unreachable: {$e->getMessage()}", 0, $e);
+            if ($response->status() === 429 && $attempt < self::RATE_LIMIT_ATTEMPTS) {
+                // Should not happen at the concurrency cap; if it does, the log says the cap is too high.
+                Log::warning('Qloo rate limited, retrying', ['path' => $path, 'attempt' => $attempt]);
+                Sleep::for($attempt)->seconds();
+
+                continue;
+            }
+
+            if ($response->failed()) {
+                // Rate limits answer {"error_msg": ...}; bad requests answer {"errors": [{"message": ...}]}.
+                $detail = $response->json('error_msg') ?? $response->json('errors.0.message') ?? $response->reason();
+
+                throw new QlooException("Qloo {$path} failed ({$response->status()}): {$detail}", $response->status());
+            }
+
+            return (array) $response->json();
+        }
+    }
+
+    /**
+     * Run a call while holding one of the shared slots, waiting for a free one if all are taken.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $call
+     * @return T
+     */
+    private function inSlot(callable $call): mixed
+    {
+        for ($wait = 0; $wait <= self::SLOT_WAIT_SECONDS * 10; $wait++) {
+            for ($slot = 0; $slot < self::CONCURRENCY; $slot++) {
+                $lock = Cache::lock("qloo:slot:{$slot}", self::SLOT_TTL_SECONDS);
+
+                if ($lock->get()) {
+                    try {
+                        return $call();
+                    } finally {
+                        $lock->release();
+                    }
+                }
+            }
+
+            Sleep::for(100)->milliseconds();
         }
 
-        return (array) $response->json();
+        throw new QlooException('Timed out waiting for a free Qloo slot.');
     }
 
     private function http(string $key): PendingRequest

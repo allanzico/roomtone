@@ -5,11 +5,25 @@ use App\Services\Qloo\QlooException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Sleep;
 
 beforeEach(function () {
     config(['services.qloo.key' => 'test-key', 'services.qloo.url' => 'https://qloo.test']);
     Cache::flush();
+    Sleep::fake();
 });
+
+/** Take every Qloo slot except the first $free ones, as other workers would. */
+function holdSlots(int $free = 0): array
+{
+    return array_map(function (int $slot) {
+        $lock = Cache::lock("qloo:slot:{$slot}", 60);
+        $lock->get();
+
+        return $lock;
+    }, range($free, QlooClient::CONCURRENCY - 1));
+}
 
 function searchHit(string $id, string $name, string $type): array
 {
@@ -136,4 +150,90 @@ test('a missing key fails loudly', function () {
 
     expect(fn () => app(QlooClient::class)->candidates('Ozark'))->toThrow(QlooException::class, 'QLOO_API_KEY');
     Http::assertNothingSent();
+});
+
+test('artistsFor sends an entity as a signal and a city as a location', function () {
+    Http::fake(['qloo.test/v2/insights*' => Http::response(['results' => ['entities' => [artistEntity('a1', 'Tems')]]])]);
+
+    $qloo = app(QlooClient::class);
+    expect($qloo->artistsFor('entity', 'tv1'))->toHaveCount(1);
+    expect($qloo->artistsFor('location', 'Lisbon'))->toHaveCount(1);
+
+    Http::assertSent(fn (Request $r) => str_contains($r->url(), 'signal.interests.entities=tv1') && ! str_contains($r->url(), 'location') && str_contains($r->url(), 'take=15'));
+    Http::assertSent(fn (Request $r) => str_contains($r->url(), 'signal.location.query=Lisbon') && ! str_contains($r->url(), 'interests'));
+});
+
+test('artistsFor rejects an unknown kind', function () {
+    Http::fake();
+
+    app(QlooClient::class)->artistsFor('genre', 'jazz');
+})->throws(InvalidArgumentException::class);
+
+test('a 429 is retried with a growing wait', function () {
+    Http::fake(['qloo.test/search*' => Http::sequence()
+        ->push(['error_msg' => 'Rate limit exceeded'], 429)
+        ->push(['error_msg' => 'Rate limit exceeded'], 429)
+        ->push(['results' => [searchHit('t1', 'Ozark', 'tv_show')]]),
+    ]);
+    Log::spy();
+
+    expect(app(QlooClient::class)->candidates('Ozark'))->toHaveCount(1);
+
+    Log::shouldHaveReceived('warning')->twice();
+    Http::assertSentCount(3);
+    Sleep::assertSequence([Sleep::for(1)->seconds(), Sleep::for(2)->seconds()]);
+});
+
+test('a lasting 429 gives up with Qloo\'s error_msg', function () {
+    Http::fake(['qloo.test/search*' => Http::response(['error_msg' => 'Rate limit exceeded'], 429)]);
+
+    expect(fn () => app(QlooClient::class)->candidates('Ozark'))
+        ->toThrow(QlooException::class, 'Qloo /search failed (429): Rate limit exceeded');
+    Http::assertSentCount(5);
+});
+
+test('a call uses a free slot and gives it back', function () {
+    $held = holdSlots(free: 1);
+    Http::fake(['qloo.test/search*' => Http::response(['results' => []])]);
+
+    app(QlooClient::class)->candidates('Ozark');
+
+    Http::assertSentCount(1);
+    expect(Cache::lock('qloo:slot:0', 1)->get())->toBeTrue();
+    array_map(fn ($lock) => $lock->release(), $held);
+});
+
+test('a call waits while every slot is taken and goes once one frees up', function () {
+    [$first] = holdSlots();
+    $waits = 0;
+    Sleep::whenFakingSleep(function () use ($first, &$waits) {
+        if (++$waits === 3) {
+            $first->release();
+        }
+    });
+    Http::fake(['qloo.test/search*' => Http::response(['results' => []])]);
+
+    app(QlooClient::class)->candidates('Ozark');
+
+    expect($waits)->toBe(3);
+    Http::assertSentCount(1);
+});
+
+test('a call gives up when no slot frees up', function () {
+    holdSlots();
+    Http::fake();
+
+    expect(fn () => app(QlooClient::class)->candidates('Ozark'))->toThrow(QlooException::class, 'free Qloo slot');
+    Http::assertNothingSent();
+});
+
+test('cached answers do not need a slot', function () {
+    Http::fake(['qloo.test/search*' => Http::response(['results' => []])]);
+    $qloo = app(QlooClient::class);
+    $qloo->candidates('Ozark');
+
+    holdSlots();
+
+    expect($qloo->candidates('Ozark'))->toBe([]);
+    Http::assertSentCount(1);
 });
