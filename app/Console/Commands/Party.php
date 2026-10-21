@@ -6,6 +6,7 @@ use App\Enums\LoveStatus;
 use App\Models\Event;
 use App\Models\Guest;
 use App\Models\GuestLove;
+use App\Services\Dj\GuestClusterer;
 use App\Services\Dj\GuestResolver;
 use App\Services\Dj\SetBuilder;
 use Illuminate\Console\Attributes\Description;
@@ -28,7 +29,7 @@ class Party extends Command
     /** Haiku 5.5 list prices per million tokens (handover section 7, third-party sources, unconfirmed). */
     private const PRICE = ['input' => 0.10, 'output' => 0.50, 'cache_read' => 0.01, 'cache_write' => 0.125];
 
-    public function handle(SetBuilder $builder): int
+    public function handle(GuestClusterer $clusterer, SetBuilder $builder): int
     {
         $file = $this->argument('file');
         $path = is_string($file) ? (str_starts_with($file, '/') ? $file : base_path($file)) : '';
@@ -58,6 +59,10 @@ class Party extends Command
         foreach ($loves->where('status', '!=', LoveStatus::Resolved) as $love) {
             $this->line("  unresolved: {$love->guest->name} / ".GuestResolver::clean($love->raw_text));
         }
+
+        $clusterer->cluster($event);
+        $this->line('Clusters: '.$event->tasteClusters()->withCount('guests')->orderByDesc('guests_count')->get()
+            ->map(fn ($c) => "{$c->label} ({$c->guests_count})")->implode(', '));
 
         if (! $this->option('stage1-only')) {
             $result = $builder->build($event);

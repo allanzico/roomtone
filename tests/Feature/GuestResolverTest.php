@@ -55,7 +55,8 @@ function fakeQloo(array $searches, array $rejected = []): void
         }
 
         return Http::response(['results' => ['entities' => [
-            ['entity_id' => 'art1', 'name' => 'Brent Cobb', 'properties' => ['notable_songs' => ['Down Home', 'Shine On Rainy Day']]],
+            ['entity_id' => 'art1', 'name' => 'Brent Cobb', 'properties' => ['notable_songs' => ['Down Home', 'Shine On Rainy Day']],
+                'tags' => [['id' => 'g', 'name' => 'Country', 'type' => 'urn:tag:genre:qloo']]],
             ['entity_id' => 'art2', 'name' => 'Tems', 'properties' => ['notable_songs' => ['Free Mind']]],
         ]]]);
     });
@@ -82,8 +83,8 @@ test('each love becomes an entity pool, a city pool or unresolved', function () 
         ->and($ozark->qloo_type)->toBe('tv_show')
         ->and($ozark->resolved_name)->toBe('Ozark')
         ->and($ozark->pool)->toBe([
-            ['id' => 'art1', 'name' => 'Brent Cobb', 'songs' => ['Down Home', 'Shine On Rainy Day'], 'rank' => 1],
-            ['id' => 'art2', 'name' => 'Tems', 'songs' => ['Free Mind'], 'rank' => 2],
+            ['id' => 'art1', 'name' => 'Brent Cobb', 'songs' => ['Down Home', 'Shine On Rainy Day'], 'genres' => ['Country'], 'rank' => 1],
+            ['id' => 'art2', 'name' => 'Tems', 'songs' => ['Free Mind'], 'genres' => [], 'rank' => 2],
         ])
         // A city picked as an entity goes to Qloo as a location, never as a signal.
         ->and($lisbon->status)->toBe(LoveStatus::Resolved)

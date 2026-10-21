@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $qloo_type
  * @property string|null $resolved_name
  * @property LoveStatus $status
- * @property list<array{id: string, name: string, songs: list<string>, rank: int}>|null $pool Qloo's ranked artists for this love
+ * @property list<array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}>|null $pool Qloo's ranked artists for this love
  * @property-read Guest $guest
  */
 #[Fillable(['raw_text', 'qloo_entity_id', 'qloo_type', 'resolved_name', 'status', 'pool'])]

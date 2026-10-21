@@ -190,6 +190,7 @@ class GuestResolver
                 'id' => $artist['id'],
                 'name' => $artist['name'],
                 'songs' => $artist['songs'],
+                'genres' => $artist['genres'],
                 'rank' => $i + 1,
             ], $artists, array_keys($artists)),
         ]);

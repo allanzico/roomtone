@@ -55,6 +55,15 @@ class QlooClient
     private const ARTIST = 'urn:entity:artist';
 
     /**
+     * Tag types that hold music genres ("Fado", "Afrobeats", "Hip Hop"). Not urn:tag:genre:music: it mixes in
+     * nationalities ("Nigeria", "British", "Korean").
+     */
+    private const GENRE_TYPES = ['urn:tag:genre:qloo', 'urn:tag:subgenre:qloo'];
+
+    /** Tags filed as genres that only say where an artist is from, or nothing at all. */
+    private const NOT_GENRES = ['all', 'american', 'british', 'canadian', 'english', 'australian'];
+
+    /**
      * Possible Qloo entities for something a guest typed. Ordered as Qloo ranks them, minus types we cannot use
      * (albums, people, authors). `kind` is "entity" (pass the id as a signal) or "location" (pass the name as `location`).
      *
@@ -96,7 +105,7 @@ class QlooClient
      *
      * @param  list<string>  $entityIds  Signals from candidates() with kind "entity".
      * @param  list<string>  $tags  Steering filters, e.g. MOODS values or ids from tags().
-     * @return list<array{id: string, name: string, popularity: float, songs: list<string>, tags: list<string>}>
+     * @return list<array{id: string, name: string, popularity: float, songs: list<string>, tags: list<string>, genres: list<string>}>
      */
     public function artists(array $entityIds = [], ?string $location = null, array $tags = [], int $take = 25): array
     {
@@ -127,13 +136,14 @@ class QlooClient
             'popularity' => round((float) ($entity['popularity'] ?? 0), 3),
             'songs' => array_values(array_filter((array) ($entity['properties']['notable_songs'] ?? []), 'is_string')),
             'tags' => array_slice(array_column((array) ($entity['tags'] ?? []), 'name'), 0, 10),
+            'genres' => $this->genres((array) ($entity['tags'] ?? [])),
         ], $entities);
     }
 
     /**
      * Artists for one taste signal, as candidates() labels it: an entity id, or a city name passed as location.
      *
-     * @return list<array{id: string, name: string, popularity: float, songs: list<string>, tags: list<string>}>
+     * @return list<array{id: string, name: string, popularity: float, songs: list<string>, tags: list<string>, genres: list<string>}>
      */
     public function artistsFor(string $kind, string $value, int $take = 15): array
     {
@@ -251,6 +261,42 @@ class QlooClient
             // Retry connection problems and 5xx only; a 4xx means we asked wrong, and asking again will not help.
             ->retry(2, 500, fn ($e) => $e instanceof ConnectionException
                 || ($e instanceof RequestException && $e->response->serverError()), throw: false);
+    }
+
+    /**
+     * Genre tag names in Qloo's order, one per spelling ("R & B" and "R&B" are one genre; "Hip Hop" is preferred
+     * over "Hip - Hop"), at most 8.
+     *
+     * @param  array<mixed>  $tags
+     * @return list<string>
+     */
+    private function genres(array $tags): array
+    {
+        $genres = [];
+
+        foreach ($tags as $tag) {
+            if (! is_array($tag) || ! in_array($tag['type'] ?? null, self::GENRE_TYPES, true) || ! is_string($tag['name'] ?? null)) {
+                continue;
+            }
+
+            $key = self::genreKey($tag['name']);
+
+            if ($key === '' || in_array($key, self::NOT_GENRES, true)) {
+                continue;
+            }
+
+            if (! isset($genres[$key]) || (str_contains($genres[$key], ' - ') && ! str_contains($tag['name'], ' - '))) {
+                $genres[$key] = trim($tag['name']);
+            }
+        }
+
+        return array_slice(array_values($genres), 0, 8);
+    }
+
+    /** One key per genre whatever the spelling: "R & B" and "R&B" give "rb", "Hip - Hop" and "Hip Hop" give "hiphop". */
+    public static function genreKey(string $name): string
+    {
+        return (string) preg_replace('/[^a-z0-9]/', '', mb_strtolower($name));
     }
 
     /**

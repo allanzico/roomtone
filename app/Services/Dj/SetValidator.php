@@ -9,7 +9,7 @@ use Closure;
  * code writes every reason, so each published "because X loves Y" is true by construction. A rejection explains
  * what to fix, so the agent can retry from the message.
  *
- * @phpstan-type Pooled array{id: string, name: string, songs: list<string>, rank: int}
+ * @phpstan-type Pooled array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}
  * @phpstan-type Love array{id: int, guest_id: int, text: string, pool: list<Pooled>}
  * @phpstan-type Accepted array{artist: string, title: string, qloo_artist_id: string, energy: int, bpm: int, for_guest_id: int, love_id: int, rank: int, reason: string, bridge: bool}
  */

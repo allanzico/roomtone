@@ -122,7 +122,7 @@ class SetBuilder
 
     /**
      * @param  array<int, string>  $guests
-     * @param  array<int, array{id: int, guest_id: int, text: string, pool: list<array{id: string, name: string, songs: list<string>, rank: int}>}>  $loves
+     * @param  array<int, array{id: int, guest_id: int, text: string, pool: list<array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}>}>  $loves
      * @param  list<string>  $played
      */
     private function prompt(Event $event, array $guests, array $loves, array $played, int $target): string

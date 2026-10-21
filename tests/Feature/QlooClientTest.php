@@ -36,7 +36,10 @@ function artistEntity(string $id, string $name, array $songs = []): array
         'entity_id' => $id,
         'name' => $name,
         'popularity' => 0.91234,
-        'tags' => [['id' => 'urn:tag:genre:qloo:country', 'name' => 'Country']],
+        'tags' => [
+            ['id' => 'urn:tag:genre:qloo:country', 'name' => 'Country', 'type' => 'urn:tag:genre:qloo'],
+            ['id' => 'urn:tag:style:qloo:soulful', 'name' => 'Soulful', 'type' => 'urn:tag:style:qloo'],
+        ],
         'properties' => ['notable_songs' => $songs, 'biography' => 'long text we do not keep'],
     ];
 }
@@ -76,8 +79,8 @@ test('artists sends signals, location and tags and returns slim artists', functi
     $artists = app(QlooClient::class)->artists(['t2', 't1'], 'Lagos', [QlooClient::MOODS['calm']], 10);
 
     expect($artists)->toBe([
-        ['id' => 'a1', 'name' => 'Brent Cobb', 'popularity' => 0.912, 'songs' => ['Down Home', 'Shine On Rainy Day'], 'tags' => ['Country']],
-        ['id' => 'a2', 'name' => 'Tems', 'popularity' => 0.912, 'songs' => [], 'tags' => ['Country']],
+        ['id' => 'a1', 'name' => 'Brent Cobb', 'popularity' => 0.912, 'songs' => ['Down Home', 'Shine On Rainy Day'], 'tags' => ['Country', 'Soulful'], 'genres' => ['Country']],
+        ['id' => 'a2', 'name' => 'Tems', 'popularity' => 0.912, 'songs' => [], 'tags' => ['Country', 'Soulful'], 'genres' => ['Country']],
     ]);
 
     // Qloo wants literal dotted keys, which Laravel's own query parsing would mangle, so check the raw query.
@@ -91,6 +94,21 @@ test('artists sends signals, location and tags and returns slim artists', functi
             && $q['filter.tags'] === 'urn:tag:style:qloo:calm'
             && $q['take'] === '10';
     });
+});
+
+test('genres merge spellings, prefer the tidy one and skip non-genres', function () {
+    $tag = fn (string $name, string $type = 'urn:tag:genre:qloo') => ['id' => 'x', 'name' => $name, 'type' => $type];
+    Http::fake(['qloo.test/v2/insights*' => Http::response(['results' => ['entities' => [[
+        'entity_id' => 'a1', 'name' => 'Burna Boy', 'properties' => [],
+        'tags' => [
+            $tag('Hip - Hop'), $tag('Afrobeats'), $tag('R & B', 'urn:tag:subgenre:qloo'), $tag('Hip Hop'),
+            $tag('R&B'), $tag('All'), $tag('American'), $tag('Soulful', 'urn:tag:style:qloo'),
+            // genre:music mixes in nationalities, so it is not read.
+            $tag('Nigeria', 'urn:tag:genre:music'),
+        ],
+    ]]]])]);
+
+    expect(app(QlooClient::class)->artists(['t1'])[0]['genres'])->toBe(['Hip Hop', 'Afrobeats', 'R & B']);
 });
 
 test('artists needs something to go on', function () {

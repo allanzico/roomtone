@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Event;
+use App\Services\Dj\GuestClusterer;
 use App\Services\Dj\SetBuilder;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -10,7 +11,7 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Stage 2 (see SetBuilder). Unique per event until it starts, and dispatched with a delay, so guests resolving
+ * Genre clusters (see GuestClusterer), then stage 2 (see SetBuilder). Unique per event until it starts, and dispatched with a delay, so guests resolving
  * close together share one run; a guest resolved while a build runs schedules the next one.
  */
 class BuildSet implements ShouldBeUniqueUntilProcessing, ShouldQueue
@@ -30,8 +31,10 @@ class BuildSet implements ShouldBeUniqueUntilProcessing, ShouldQueue
         return (string) $this->event->id;
     }
 
-    public function handle(SetBuilder $builder): void
+    public function handle(GuestClusterer $clusterer, SetBuilder $builder): void
     {
+        // Islands first, so the set and the islands the host screen shows come from the same guests.
+        $clusterer->cluster($this->event);
         $result = $builder->build($this->event);
 
         Log::info('DJ set built', ['event' => $this->event->code, ...array_diff_key($result, ['usage' => 1, 'log' => 1]),
