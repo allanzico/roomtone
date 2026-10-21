@@ -3,18 +3,16 @@
 namespace App\Console\Commands;
 
 use App\Enums\LoveStatus;
-use App\Models\Event;
 use App\Models\Guest;
 use App\Models\GuestLove;
 use App\Services\Dj\GuestClusterer;
 use App\Services\Dj\GuestResolver;
+use App\Services\Dj\PartyRunner;
 use App\Services\Dj\SetBuilder;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Concurrency;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Str;
 use Laravel\Ai\Responses\Data\TextUsage;
 
 /**
@@ -29,7 +27,7 @@ class Party extends Command
     /** Haiku 5.5 list prices per million tokens (handover section 7, third-party sources, unconfirmed). */
     private const PRICE = ['input' => 0.10, 'output' => 0.50, 'cache_read' => 0.01, 'cache_write' => 0.125];
 
-    public function handle(GuestClusterer $clusterer, SetBuilder $builder): int
+    public function handle(PartyRunner $runner, GuestClusterer $clusterer, SetBuilder $builder): int
     {
         $file = $this->argument('file');
         $path = is_string($file) ? (str_starts_with($file, '/') ? $file : base_path($file)) : '';
@@ -40,16 +38,16 @@ class Party extends Command
             return self::FAILURE;
         }
 
-        /** @var array{name: string, guests: list<array{name: string, loves: list<string>}>} $party */
+        /** @var array{name: string, occasion?: string, guests: list<array{name: string, loves: list<string>}>} $party */
         $party = json_decode(File::get($path), true, flags: JSON_THROW_ON_ERROR);
-        $event = $this->createEvent($party);
+        $event = $runner->create($party);
         $this->info("Event {$event->code}: {$event->name}, ".count($party['guests']).' guests');
 
         $log = storage_path('logs/laravel.log');
         $before = File::exists($log) ? substr_count(File::get($log), 'Qloo rate limited') : 0;
 
         $started = microtime(true);
-        $usage = $this->stageOne($event, max(1, (int) $this->option('workers')));
+        $usage = $runner->resolveAll($event, max(1, (int) $this->option('workers')));
         $stageOne = round(microtime(true) - $started, 1);
 
         $loves = GuestLove::query()->whereIn('guest_id', $event->guests()->pluck('id'))->with('guest')->get();
@@ -86,53 +84,6 @@ class Party extends Command
         $this->line("Host screen: /e/{$event->code}/host (host link with requests: /e/{$event->code}/host?key={$event->host_token})");
 
         return self::SUCCESS;
-    }
-
-    /**
-     * @param  array{name: string, guests: list<array{name: string, loves: list<string>}>}  $party
-     */
-    private function createEvent(array $party): Event
-    {
-        do {
-            $code = Str::upper(Str::random(6));
-        } while (Event::where('code', $code)->exists());
-
-        $event = Event::create(['code' => $code, 'name' => $party['name'], 'host_token' => Str::random(40)]);
-
-        foreach ($party['guests'] as $entry) {
-            $guest = $event->guests()->create(['name' => $entry['name'], 'color' => '#ffffff']);
-
-            foreach ($entry['loves'] as $love) {
-                $guest->loves()->create(['raw_text' => $love]);
-            }
-        }
-
-        return $event;
-    }
-
-    /**
-     * Resolve every guest, $workers at a time in separate processes. The Qloo cap is shared through cache locks.
-     */
-    private function stageOne(Event $event, int $workers): TextUsage
-    {
-        $ids = $event->guests()->orderBy('id')->pluck('id')->all();
-        $slices = array_filter(array_map(fn (int $w) => array_values(array_filter($ids, fn ($id, $i) => $i % $workers === $w, ARRAY_FILTER_USE_BOTH)), range(0, $workers - 1)));
-
-        $tasks = [];
-        foreach (array_values($slices) as $slice) {
-            $tasks[] = static function () use ($slice): array {
-                $total = new TextUsage;
-                foreach ($slice as $id) {
-                    $total = $total->add(app(GuestResolver::class)->resolve(Guest::query()->whereKey($id)->firstOrFail()));
-                }
-
-                return $total->toArray();
-            };
-        }
-
-        $results = Concurrency::run($tasks, 900);
-
-        return array_reduce($results, fn (TextUsage $carry, array $usage) => $carry->add(TextUsage::fromArray($usage)), new TextUsage);
     }
 
     private function tokens(TextUsage $usage): string

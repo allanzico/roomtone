@@ -41,7 +41,8 @@ class HostRoomController extends Controller
                 'code' => $event->code,
                 'name' => $event->name,
                 'occasion' => $event->occasion,
-                'energy' => $event->startingEnergy(),
+                // The scene's energy follows the arc through the playing track.
+                'energy' => $nowPlaying?->track->energy ?? $event->startingEnergy(),
             ],
             'clusters' => $event->tasteClusters->map(fn (TasteCluster $cluster) => [
                 'id' => $cluster->id,

@@ -11,6 +11,7 @@ use App\Models\SetItem;
 use App\Models\Track;
 use App\Services\YouTube\TrackResolver;
 use App\Services\YouTube\YouTubeException;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\Data\FinishReason;
@@ -21,6 +22,7 @@ use Laravel\Ai\Responses\Data\TextUsage;
  * Stage 2 of the DJ agent: DjAgent fills the upcoming set from the stored pools through add_track (SetValidator),
  * then code checks completeness, re-runs the agent with a summary if needed, and replaces the queued tracks.
  * Tracks already played or playing, and queued tracks from a host request, stay; their artists are not repeated.
+ * The new tracks are ordered to follow the event's energy arc (EnergyArc).
  */
 class SetBuilder
 {
@@ -170,6 +172,14 @@ class SetBuilder
      */
     private function write(Event $event, array $accepted, bool $playing): void
     {
+        // Follow the energy arc, starting after whatever plays first (the current track and any request picks).
+        $ahead = $event->setItems()
+            ->where(fn ($q) => $q->where('status', SetItemStatus::Playing)
+                ->orWhere(fn ($q) => $q->where('status', SetItemStatus::Queued)->whereNotNull('host_request_id')))
+            ->orderBy('position')->get();
+        $start = CarbonImmutable::now()->addSeconds((int) round($ahead->count() * EnergyArc::MINUTES_PER_TRACK * 60));
+        $accepted = EnergyArc::order($accepted, EnergyArc::targets($event, $start, count($accepted)), $ahead->last()?->reason_guest_id);
+
         DB::transaction(function () use ($event, $accepted, $playing) {
             $event->setItems()->where('status', SetItemStatus::Queued)->whereNull('host_request_id')->delete();
             $position = (int) $event->setItems()->max('position');

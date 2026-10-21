@@ -82,6 +82,10 @@ export const useRoom = create<RoomState>()((set) => ({
 
     syncFromServer: (props) =>
         set((state) => ({
+            energy:
+                props.nowPlaying && state.nowPlaying?.id !== props.nowPlaying.id
+                    ? clampEnergy(props.nowPlaying.energy)
+                    : state.energy,
             clusters: props.clusters,
             guests: props.guests,
             queue: props.queue,
@@ -109,6 +113,8 @@ export const useRoom = create<RoomState>()((set) => ({
 
             return {
                 nowPlaying: next,
+                // The scene follows the energy arc through each track's energy.
+                energy: clampEnergy(next.energy),
                 queue:
                     state.nowPlaying && state.hostKey === null
                         ? [...rest, state.nowPlaying]

@@ -89,21 +89,25 @@ test('the set is built from add_track calls, with code-written reasons, and the 
     $result = app(SetBuilder::class)->build($this->event);
 
     $items = $this->event->setItems()->with('track')->orderBy('position')->get();
+    $brent = $items->first(fn ($i) => $i->track->artist === 'Brent Cobb');
+    $tems = $items->first(fn ($i) => $i->track->artist === 'Tems');
 
     // Short of the 10-track target, so the agent is nudged three times; the fake adds nothing more.
     expect($result)->toMatchArray(['tracks' => 2, 'target' => 10, 'unserved' => [], 'nudges' => 3])
         ->and($result['log'])->toBe(['ok', 'ok', 'not_in_results'])
         ->and($items)->toHaveCount(2)
+        // The default arc starts at energy 3, so Tems (3) opens and Brent Cobb (2) follows.
+        ->and($items[0]->is($tems))->toBeTrue()
         ->and($items[0]->status)->toBe(SetItemStatus::Playing)
-        ->and($items[0]->reason_text)->toBe('because Maria loves Ozark')
-        ->and($items[0]->reason_love_id)->toBe(loveId($this->maria, 'Ozark'))
-        ->and($items[0]->reason_rank)->toBe(1)
-        ->and($items[0]->track->only(['artist', 'title', 'energy', 'bpm', 'qloo_artist_id']))
+        ->and($brent->status)->toBe(SetItemStatus::Queued)
+        ->and($brent->reason_text)->toBe('because Maria loves Ozark')
+        ->and($brent->reason_love_id)->toBe(loveId($this->maria, 'Ozark'))
+        ->and($brent->reason_rank)->toBe(1)
+        ->and($brent->track->only(['artist', 'title', 'energy', 'bpm', 'qloo_artist_id']))
         ->toBe(['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'energy' => 2, 'bpm' => 95, 'qloo_artist_id' => 'q-Brent Cobb'])
-        ->and($items[0]->track->youtube_video_id)->not->toBeNull()
-        ->and($items[1]->status)->toBe(SetItemStatus::Queued)
-        ->and($items[1]->reason_guest_id)->toBe($this->jake->id)
-        ->and($items[1]->reason_text)->toBe('because Jake loves Dark and Maria loves Ozark')
+        ->and($brent->track->youtube_video_id)->not->toBeNull()
+        ->and($tems->reason_guest_id)->toBe($this->jake->id)
+        ->and($tems->reason_text)->toBe('because Jake loves Dark and Maria loves Ozark')
         ->and(Track::where('artist', 'Rick Astley')->exists())->toBeFalse();
 
     DjAgent::assertPrompted(fn ($p) => $p->contains('Target: 10 tracks')

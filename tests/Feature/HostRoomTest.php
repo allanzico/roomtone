@@ -20,7 +20,8 @@ test('host room renders the seeded demo party', function () {
             ->component('HostRoom')
             ->where('event.code', 'DEMO')
             ->where('event.name', 'Lisbon Rooftop')
-            ->where('event.energy', 3)
+            // The playing track's energy (Last Last, 4), so the scene follows the arc.
+            ->where('event.energy', 4)
             ->missing('event.host_token')
             ->has('clusters', 4)
             ->has('clusters.0', fn (Assert $cluster) => $cluster

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
@@ -15,13 +17,26 @@ use Illuminate\Support\Carbon;
  * @property string|null $occasion
  * @property list<array{at: string, energy: int, label: string}>|null $energy_plan
  * @property string $host_token
+ * @property bool $demo A visitor's copy of the demo party
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['code', 'name', 'occasion', 'energy_plan', 'host_token'])]
+#[Fillable(['code', 'name', 'occasion', 'energy_plan', 'host_token', 'demo'])]
 #[Hidden(['host_token'])]
 class Event extends Model
 {
+    use MassPrunable;
+
+    /**
+     * Visitors' demo copies older than a day (`model:prune`, scheduled daily). Everything in them cascades.
+     *
+     * @return Builder<static>
+     */
+    public function prunable(): Builder
+    {
+        return static::query()->where('demo', true)->where('created_at', '<', now()->subDay());
+    }
+
     /**
      * @return HasMany<Guest, $this>
      */
@@ -77,6 +92,7 @@ class Event extends Model
     {
         return [
             'energy_plan' => 'array',
+            'demo' => 'boolean',
         ];
     }
 }

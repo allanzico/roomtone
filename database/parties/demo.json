@@ -1,0 +1,156 @@
+{
+  "name": "Lisbon Rooftop",
+  "occasion": "Rooftop birthday",
+  "plan": [
+    {
+      "after_minutes": 0,
+      "energy": 4,
+      "label": "After dinner"
+    },
+    {
+      "after_minutes": 25,
+      "energy": 5,
+      "label": "Peak"
+    },
+    {
+      "after_minutes": 70,
+      "energy": 3,
+      "label": "Late"
+    },
+    {
+      "after_minutes": 100,
+      "energy": 2,
+      "label": "Wind down"
+    }
+  ],
+  "guests": [
+    {
+      "name": "Maria",
+      "loves": [
+        "Ozark",
+        "pastéis de nata",
+        "Burna Boy"
+      ]
+    },
+    {
+      "name": "Tomás",
+      "loves": [
+        "Alfama",
+        "Amália Rodrigues",
+        "The White Lotus"
+      ]
+    },
+    {
+      "name": "Aisha",
+      "loves": [
+        "jollof rice",
+        "Lagos",
+        "Wizkid"
+      ]
+    },
+    {
+      "name": "Jake",
+      "loves": [
+        "Stranger Things",
+        "Whitney Houston",
+        "Coney Island"
+      ]
+    },
+    {
+      "name": "Priya",
+      "loves": [
+        "Peckham",
+        "Top Boy",
+        "Craig David"
+      ]
+    },
+    {
+      "name": "Lena",
+      "loves": [
+        "Dark",
+        "Berlin",
+        "Kate Bush"
+      ]
+    },
+    {
+      "name": "Kofi",
+      "loves": [
+        "suya",
+        "Insecure",
+        "Tems"
+      ]
+    },
+    {
+      "name": "Inês",
+      "loves": [
+        "Sintra",
+        "Mariza",
+        "Normal People"
+      ]
+    },
+    {
+      "name": "Noor",
+      "loves": [
+        "Succession",
+        "Tokyo",
+        "Studio Ghibli"
+      ]
+    },
+    {
+      "name": "Chioma",
+      "loves": [
+        "Love Is Blind",
+        "Abuja",
+        "Asake"
+      ]
+    },
+    {
+      "name": "Mateo",
+      "loves": [
+        "La Casa de Papel",
+        "Medellín",
+        "Bad Bunny"
+      ]
+    },
+    {
+      "name": "Hana",
+      "loves": [
+        "Squid Game",
+        "Seoul",
+        "BTS"
+      ]
+    },
+    {
+      "name": "Zoe",
+      "loves": [
+        "Euphoria",
+        "Brooklyn",
+        "SZA"
+      ]
+    },
+    {
+      "name": "Finn",
+      "loves": [
+        "Peaky Blinders",
+        "Glasgow",
+        "Arctic Monkeys"
+      ]
+    },
+    {
+      "name": "Ayesha",
+      "loves": [
+        "Bridgerton",
+        "Mumbai",
+        "Arijit Singh"
+      ]
+    },
+    {
+      "name": "Sam",
+      "loves": [
+        "Fleabag",
+        "Sunday roast",
+        "Phoebe Bridgers"
+      ]
+    }
+  ]
+}
