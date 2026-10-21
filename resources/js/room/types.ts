@@ -33,6 +33,8 @@ export type SetItem = {
     id: number;
     title: string;
     artist: string;
+    /** YouTube video id, or null when no playable video was found; the player skips those. */
+    videoId: string | null;
     energy: number;
     reasonGuestId: number | null;
     reasonText: string;

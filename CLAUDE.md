@@ -83,6 +83,14 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - `room/Effects.tsx` falls back to 8-bit buffers on software renderers (SwiftShader/llvmpipe, i.e. hardware acceleration off), where HDR bloom renders black.
 - Dev keys on the host screen: G add fake guest, N next track (played track loops to the end of the queue until the server owns the set), E cycle energy, H toggle the shortcut hint.
 
+## YouTube notes (verified on Google's docs and console, Oct 2026)
+
+- Client: `app/Services/YouTube/`: `YouTubeClient` (search, playable) and `TrackResolver` (picked title, then the artist's next song). Config: `YOUTUBE_API_KEY`.
+- Quota: `search.list` has its own bucket of 100 calls/day (about 90 new tracks a day); `videos.list` costs 1 of 10,000 units. Every lookup, found or not, is stored on the track (`youtube_checked_at`) so no track is searched twice. Never add a search to a hot path.
+- Policy: stored API data must be refreshed or deleted within 30 days (`roomtone:refresh-videos`, scheduled daily, uses `videos.list` only). The player must stay visible and at least 200×200 px, with nothing drawn over it: no audio-only or hidden player. `room/VideoTile.tsx` places it (TV bottom centre in real px, phone over the pool).
+- Unmuted playback starts only inside a click ("Start the party", or the phone's play button), via `startPlayback()`.
+- `roomtone:resolve-videos {code}` resolves an event's set (the demo party needs it after seeding).
+
 ## Qloo API notes (verified live, Oct 2026)
 
 - Client: `app/Services/Qloo/QlooClient.php`: `candidates()` (search), `artists()` (insights), `tags()`. Everything is cached forever in the app cache; failures throw `QlooException` and are never cached. Config: `QLOO_API_KEY`, `QLOO_API_URL` (hackathon server; the key only works there).

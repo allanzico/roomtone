@@ -112,6 +112,8 @@
     inset: 0;
     overflow: hidden;
     pointer-events: none;
+    /* drei gives each label a huge z-index; keep them inside this layer so they never cover the video. */
+    isolation: isolate;
 }
 
 .rt-haze {
@@ -789,6 +791,58 @@
 .rt-skip:disabled {
     opacity: 0.4;
     cursor: default;
+}
+
+/* ---------- Video and start ---------- */
+
+/* The YouTube player must stay visible and at least 200×200 (YouTube's rules); nothing may cover it. */
+.rt-video {
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    border-radius: 12px;
+    background: var(--rt-space-0);
+    box-shadow: 0 0 0 1px var(--rt-hairline);
+}
+
+.rt-video iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.rt-start {
+    position: fixed;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.rt-start-button {
+    min-height: var(--rt-tap);
+    padding: 18px 40px;
+    border: 0;
+    border-radius: var(--rt-radius-pill);
+    background: var(--rt-cta);
+    box-shadow: var(--rt-cta-glow);
+    color: var(--rt-cta-ink);
+    font: inherit;
+    font-size: clamp(18px, 1.6vw, 28px);
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.rt-start-button:hover {
+    filter: brightness(1.06);
+}
+
+.rt-start-note {
+    color: var(--rt-text-4);
+    font-size: var(--rt-fs-micro);
 }
 
 /* ---------- Motion ---------- */

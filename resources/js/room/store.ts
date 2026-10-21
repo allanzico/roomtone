@@ -22,7 +22,9 @@ type RoomState = {
     energy: number;
     /** 0–1. Driven by a slow "breathing" sine for now; the host mic replaces it later. */
     audioLevel: number;
-    /** Host pressed pause on the phone. Playback arrives in Phase 4; for now it only shows. */
+    /** The host clicked "Start the party"; until then nothing plays (browsers block unmuted autoplay). */
+    started: boolean;
+    /** Host pressed pause. */
     paused: boolean;
     /** Realtime connection dropped (Phase 2+). The last state stays on screen. */
     reconnecting: boolean;
@@ -33,6 +35,8 @@ type RoomState = {
     setEnergy: (energy: number) => void;
     setAudioLevel: (level: number) => void;
     togglePaused: () => void;
+    start: () => void;
+    stop: () => void;
     setStage: (stage: Stage) => void;
 };
 
@@ -44,6 +48,7 @@ export const useRoom = create<RoomState>()((set) => ({
     queue: [],
     energy: 3,
     audioLevel: 0,
+    started: false,
     paused: false,
     reconnecting: false,
     stage: computeStage(
@@ -83,6 +88,10 @@ export const useRoom = create<RoomState>()((set) => ({
     setAudioLevel: (audioLevel) => set({ audioLevel }),
 
     togglePaused: () => set((state) => ({ paused: !state.paused })),
+
+    start: () => set({ started: true, paused: false }),
+
+    stop: () => set({ started: false }),
 
     setStage: (stage) => set({ stage }),
 }));

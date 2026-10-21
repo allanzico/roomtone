@@ -5,6 +5,15 @@ import type { MixSegment } from './genres';
 import { reducedMotion } from './stage';
 import { useRoom } from './store';
 import type { Guest, SetItem } from './types';
+import {
+    hasVideo,
+    nowSlotWidth,
+    StartParty,
+    startPlayback,
+    startPosition,
+    videoRect,
+    VideoTile,
+} from './VideoTile';
 
 /**
  * The HTML layer over the pool. Everything meaningful lives here (the canvas is
@@ -18,6 +27,8 @@ export function Hud({
     onDismissHint: () => void;
 }) {
     const stage = useRoom((s) => s.stage);
+    const playable = useRoom(hasVideo);
+    const started = useRoom((s) => s.started);
 
     return (
         <>
@@ -33,6 +44,10 @@ export function Hud({
             ) : (
                 <PhoneHud poolBottom={stage.band.y + stage.band.h} />
             )}
+            {playable && <VideoTile style={videoRect(stage)} />}
+            {playable && !started && (
+                <StartParty style={startPosition(stage)} />
+            )}
             <Arrivals />
         </>
     );
@@ -46,6 +61,8 @@ function TvHud({
     onDismissHint: () => void;
 }) {
     const empty = useRoom((s) => s.guests.length === 0);
+    const stage = useRoom((s) => s.stage);
+    const playable = useRoom(hasVideo);
 
     return (
         <>
@@ -57,7 +74,14 @@ function TvHud({
             ) : (
                 <>
                     <GuestStream />
-                    <div className="rt-now-slot">
+                    <div
+                        className="rt-now-slot"
+                        style={
+                            playable
+                                ? { width: nowSlotWidth(stage) }
+                                : undefined
+                        }
+                    >
                         <NowPlaying />
                     </div>
                     <UpNext />
@@ -343,6 +367,8 @@ function Title({ text }: { text: string }) {
     const energy = useRoom((s) => s.energy);
     const layout = useRoom((s) => s.stage.layout);
     const width = useRoom((s) => s.stage.width);
+    // The TV slot narrows on small screens to stay clear of the video tile.
+    const scale = useRoom((s) => s.stage.scale);
 
     useLayoutEffect(() => {
         const el = ref.current;
@@ -377,7 +403,7 @@ function Title({ text }: { text: string }) {
         return () => {
             cancelled = true;
         };
-    }, [text, energy, layout, width]);
+    }, [text, energy, layout, width, scale]);
 
     return (
         <h2 ref={ref} className="rt-title" style={titleAxes(energy)}>
@@ -545,7 +571,8 @@ function Arrivals() {
 /* ---------- Phone playback ---------- */
 
 function PlaybackBar() {
-    const paused = useRoom((s) => s.paused);
+    const started = useRoom((s) => s.started);
+    const paused = useRoom((s) => s.paused) || !started;
     const togglePaused = useRoom((s) => s.togglePaused);
     const nextTrack = useRoom((s) => s.nextTrack);
     const canSkip = useRoom((s) => s.queue.length > 0);
@@ -557,7 +584,7 @@ function PlaybackBar() {
                 type="button"
                 className="rt-pause"
                 aria-label={paused ? 'Play' : 'Pause'}
-                onClick={togglePaused}
+                onClick={started ? togglePaused : startPlayback}
             >
                 {paused ? <PlayIcon /> : <PauseIcon />}
             </button>
