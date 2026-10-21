@@ -34,6 +34,7 @@ test('host room renders the seeded demo party', function () {
                 ->etc())
             ->where('nowPlaying.title', 'Last Last')
             ->where('nowPlaying.artist', 'Burna Boy')
+            ->where('nowPlaying.videoId', null)
             ->where('nowPlaying.reasonText', 'because Maria loves Ozark')
             ->has('queue', 9)
             ->where('queue.0.title', 'I Wanna Dance with Somebody (Who Loves Me)'));
@@ -61,4 +62,10 @@ test('demo party seeder can run twice without duplicating tracks', function () {
 
     expect(Event::query()->where('code', 'DEMO')->count())->toBe(1)
         ->and(Track::query()->count())->toBe(10);
+});
+
+test('host room sends each track\'s video id', function () {
+    Track::query()->where('title', 'Last Last')->update(['youtube_video_id' => 'abc123']);
+
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.videoId', 'abc123'));
 });

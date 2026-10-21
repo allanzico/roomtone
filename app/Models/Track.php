@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\WithoutTimestamps;
 use Illuminate\Database\Eloquent\Model;
@@ -15,11 +16,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $bpm
  * @property int $energy
  * @property string|null $qloo_artist_id
+ * @property CarbonImmutable|null $youtube_checked_at
  */
-#[Fillable(['artist', 'title', 'youtube_video_id', 'bpm', 'energy', 'qloo_artist_id'])]
+#[Fillable(['artist', 'title', 'youtube_video_id', 'bpm', 'energy', 'qloo_artist_id', 'youtube_checked_at'])]
 #[WithoutTimestamps]
 class Track extends Model
 {
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['youtube_checked_at' => 'immutable_datetime'];
+    }
+
     /**
      * @return HasMany<SetItem, $this>
      */

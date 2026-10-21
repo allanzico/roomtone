@@ -60,7 +60,7 @@ class HostRoomController extends Controller
     }
 
     /**
-     * @return array{id: int, title: string, artist: string, energy: int, reasonGuestId: int|null, reasonText: string}
+     * @return array{id: int, title: string, artist: string, videoId: string|null, energy: int, reasonGuestId: int|null, reasonText: string}
      */
     private function setItem(SetItem $item): array
     {
@@ -68,6 +68,7 @@ class HostRoomController extends Controller
             'id' => $item->id,
             'title' => $item->track->title,
             'artist' => $item->track->artist,
+            'videoId' => $item->track->youtube_video_id,
             'energy' => $item->track->energy,
             'reasonGuestId' => $item->reason_guest_id,
             'reasonText' => $item->reason_text,
