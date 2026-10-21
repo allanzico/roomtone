@@ -1,20 +1,10 @@
-import {
-    Bloom,
-    ChromaticAberration,
-    EffectComposer,
-    Noise,
-    ToneMapping,
-    Vignette,
-} from '@react-three/postprocessing';
+import { EffectComposer } from '@react-three/postprocessing';
 import { useFrame, useThree } from '@react-three/fiber';
-import { BlendFunction, ToneMappingMode } from 'postprocessing';
-import type { BloomEffect } from 'postprocessing';
-import { useMemo, useRef } from 'react';
-import { HalfFloatType, UnsignedByteType, Vector2 } from 'three';
+import { BloomEffect } from 'postprocessing';
+import { useEffect, useMemo } from 'react';
+import { HalfFloatType, UnsignedByteType } from 'three';
 import { live } from './live';
 import { useRoom } from './store';
-
-const aberration = new Vector2(0.0005, 0.0004);
 
 /**
  * Software renderers (no GPU, or hardware acceleration switched off) draw HDR bloom as a black
@@ -31,16 +21,40 @@ function isSoftwareRenderer(
     return /swiftshader|llvmpipe|software/i.test(renderer);
 }
 
+/**
+ * Bloom that only adds light. Stock bloom also blends its blurred alpha into the frame, which
+ * on this transparent canvas dims the CSS space and haze behind the islands.
+ */
+class LightOnlyBloom extends BloomEffect {
+    constructor() {
+        super({
+            mipmapBlur: true,
+            luminanceThreshold: 0.72,
+            luminanceSmoothing: 0.2,
+            intensity: 0.25,
+            radius: 0.7,
+        });
+
+        this.setFragmentShader(
+            this.getFragmentShader().replace(
+                'outputColor=texture2D(map,uv)*intensity;',
+                'outputColor=vec4(texture2D(map,uv).rgb*intensity,0.0);',
+            ),
+        );
+    }
+}
+
+/** A little bloom on the lava's highlights only. The CSS haze does the big glow. */
 export function Effects() {
     const gl = useThree((s) => s.gl);
     const software = useMemo(() => isSoftwareRenderer(gl.getContext()), [gl]);
-    const bloom = useRef<BloomEffect>(null);
+    const bloom = useMemo(() => new LightOnlyBloom(), []);
+
+    useEffect(() => () => bloom.dispose(), [bloom]);
 
     useFrame(() => {
-        if (bloom.current) {
-            const level = useRoom.getState().audioLevel;
-            bloom.current.intensity = 0.75 + live.heat * 0.95 + level * 0.35;
-        }
+        const level = useRoom.getState().audioLevel;
+        bloom.intensity = 0.22 + live.heat * 0.12 + level * 0.08;
     });
 
     return (
@@ -48,28 +62,7 @@ export function Effects() {
             multisampling={software ? 0 : 4}
             frameBufferType={software ? UnsignedByteType : HalfFloatType}
         >
-            <Bloom
-                ref={bloom}
-                mipmapBlur
-                luminanceThreshold={0.2}
-                luminanceSmoothing={0.3}
-                intensity={1}
-                radius={0.78}
-            />
-            <ToneMapping
-                mode={
-                    software
-                        ? ToneMappingMode.LINEAR
-                        : ToneMappingMode.ACES_FILMIC
-                }
-            />
-            <ChromaticAberration
-                offset={aberration}
-                radialModulation
-                modulationOffset={0.4}
-            />
-            <Vignette offset={0.25} darkness={0.75} />
-            <Noise opacity={0.03} blendFunction={BlendFunction.SOFT_LIGHT} />
+            <primitive object={bloom} />
         </EffectComposer>
     );
 }

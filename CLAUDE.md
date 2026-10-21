@@ -2,13 +2,14 @@
 
 ## Product
 
-Roomtone is a party soundtrack built from what guests love — even guests who can't name a song.
+Roomtone is a shared soundtrack built from what everyone loves — even people who can't name a song. It works for any shared listening occasion: party, long drive, family road trip, dinner, cooking at home, workout. "Room" is the brand word for any of these.
 
-- The **host** creates an event, then puts the **host screen** (laptop/TV, connected to the speaker) up in the room. It shows a 3D "room" and plays the set.
+- The **host** sets up by **talking to the DJ** (a chat, not a form), then puts the **host screen** (laptop/TV, connected to the speaker) up in the room. It shows a 3D "room" and plays the set.
 - **Guests** scan a QR code, no app, no login, and enter **three things they love** — anything: a show, a food, a place, an artist.
 - A **DJ agent** (LLM with tools) uses the **Qloo Taste AI API** to turn those cross-domain tastes into music, finds what the room shares, gives every guest at least one song "for them", and shapes the set to the host's energy plan.
 - The host can steer the agent in plain language mid-party ("speeches in 10 min, calm it down", "more Afrobeats").
-- Every track carries a reason ("because Maria loves Ozark"), visualised in 3D as a beam from the playing song to that guest's orb.
+- Every track carries a reason ("because Maria loves Ozark"), shown as the reason line under the title and as **ripple rings** around that guest's point.
+- Guests are **white points**; colour belongs to genres (clusters) only. Each genre is a lava **island** whose area is proportional to its guests (radius ∝ √members).
 
 The 3D host screen is the signature experience: extraordinary, playful, premium — not a generic dashboard.
 
@@ -41,16 +42,21 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 
 ## Phases
 
-1. Scaffold + 3D host room with fake data ← **current**
+1. Scaffold + 3D host room with fake data
+   1b. Host screen redesign (docs/design/handoff.md §3), fake data ← **current**
 2. Guest join (QR + 3-field form) + Reverb live orb landing
 3. Deploy (Docker + Caddy HTTPS) + Qloo service with caching
 4. YouTube resolve (cached) + IFrame player
 5. DJ agent (Laravel AI SDK) rebalancing the set on guest join
 6. Host request box → agent + "why this song" beam wired to real data
-7. Demo party mode + energy arc
+7. Demo party mode + energy arc + setup chat (handoff §4)
 8. Guest phone polish + mic audio reactivity
 9. Hardening
 10. README, license, submission
+
+## Design
+
+`docs/design/handoff.md` is the UI source of truth (tokens, layouts, states, motion, accessibility); the images next to it show the target. Where the file and an image disagree, the file wins.
 
 ## Working rules
 
@@ -68,7 +74,10 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - 3D room lives in `resources/js/room/`. `store.ts` (zustand) is the single source of client state; per-frame values (energy smoothing, orb positions) live in `room/live.ts`, outside React, so animation never re-renders components.
 - Guest-to-cluster weights live in the `guest_taste_cluster` pivot (`weight` 0–1). This is the one addition to the data model above: the agent writes it later.
 - A track's cluster (Star colour) = the dominant cluster of its reason guest.
-- Display font: Anybody (variable `wdth`/`wght`, OFL) served locally from `resources/fonts/anybody` via the Vite fonts `local()` provider. Instrument Sans (kit default) comes from Bunny at build time. The now-playing title's width and weight follow the energy level.
+- Display font: Bricolage Grotesque (variable `opsz`/`wdth`/`wght`, OFL) served locally from `resources/fonts/bricolage-grotesque` via the Vite fonts `local()` provider; latin-ext is a second family ("Bricolage Grotesque Ext") in the `--rt-font` stack, because `local()` has no unicode-range. Instrument Sans (kit default, auth/settings pages) comes from Bunny at build time. The now-playing title's width and weight follow the energy level.
+- Host screen layout: `room/stage.ts` picks TV (landscape ≥ 1024px, one 1920×1080 stage scaled to fit) or phone. Pool coordinates are layout px; the 3D world is 1 unit = 100 layout px, origin at the frame centre, so the HUD and the islands line up. Design tokens live in `resources/css/tokens.css`; genre colours are read from them in `room/genres.ts`.
+- A cluster's `position` x/z is its preferred spot on the host screen floor (x −7.2…7.2, z −3.05…3.05); `layoutIslands()` maps it into the pool band and pushes overlaps apart. y is unused.
+- The canvas is transparent over the CSS space. Island haze is a blurred div in a DOM layer behind the canvas (`hazePortal`), and bloom outputs alpha 0 (`LightOnlyBloom`); stock bloom's alpha dims whatever is behind a transparent canvas.
 - In-scene labels (drei `<Html>`) must use `portal={labelPortal}` from `room/labels.ts`; without a fixed portal the first label can render empty under React 19.
 - `three` is pinned to 0.182.x: R3F 9.8 still creates a `THREE.Clock`, which logs a deprecation warning on three ≥ 0.183. Bump when R3F moves to `THREE.Timer`.
 - `room/Effects.tsx` falls back to 8-bit buffers on software renderers (SwiftShader/llvmpipe, i.e. hardware acceleration off), where HDR bloom renders black.

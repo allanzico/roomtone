@@ -1,32 +1,40 @@
 import { AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { useState } from 'react';
-import { Atmosphere } from './Atmosphere';
+import type { CSSProperties } from 'react';
 import { CameraRig } from './CameraRig';
-import { Clusters } from './Clusters';
 import { Conductor } from './Conductor';
 import { Effects } from './Effects';
-import { Grooves } from './Grooves';
-import { GuestOrbs } from './GuestOrbs';
-import { labelLayer } from './labels';
-import { ReasonBeam } from './ReasonBeam';
-import { Star } from './Star';
+import { GuestPoints } from './GuestPoints';
+import { Islands } from './Islands';
+import { hazeLayer, labelLayer } from './labels';
+import { Ripples } from './Ripples';
+import { useRoom } from './store';
 
-const INK = '#03060F';
-
+/** The pool: lava islands, guest points and ripples. Transparent; space is drawn in CSS behind it. */
 export function Scene() {
+    const scale = useRoom((s) => s.stage.scale);
     const [dpr, setDpr] = useState(() =>
         Math.min(window.devicePixelRatio || 1, 2),
     );
 
     return (
-        <>
+        <div className="rt-scene" aria-hidden="true">
+            <div
+                ref={hazeLayer}
+                className="rt-labels"
+                style={{ '--rt-s': scale } as CSSProperties}
+            />
             <Canvas
                 className="rt-canvas"
                 dpr={dpr}
                 flat
-                gl={{ antialias: false, powerPreference: 'high-performance' }}
-                camera={{ position: [0, 5, 24], fov: 42, near: 0.1, far: 200 }}
+                gl={{
+                    alpha: true,
+                    antialias: false,
+                    powerPreference: 'high-performance',
+                }}
+                camera={{ position: [0, 0, 20], fov: 30, near: 0.1, far: 100 }}
             >
                 <PerformanceMonitor
                     onChange={({ factor }) =>
@@ -36,33 +44,18 @@ export function Scene() {
                 />
                 <AdaptiveDpr pixelated />
 
-                <color attach="background" args={[INK]} />
-                <fog attach="fog" args={[INK, 18, 48]} />
-                <ambientLight intensity={0.35} />
-                <pointLight
-                    position={[5, 6, 9]}
-                    intensity={170}
-                    decay={2}
-                    color="#FFF1E6"
-                />
-                <pointLight
-                    position={[-7, -2, -6]}
-                    intensity={90}
-                    decay={2}
-                    color="#6C7BFF"
-                />
-
                 <Conductor />
                 <CameraRig />
-                <Atmosphere />
-                <Grooves />
-                <Clusters />
-                <Star />
-                <GuestOrbs />
-                <ReasonBeam />
+                <Islands />
+                <Ripples />
+                <GuestPoints />
                 <Effects />
             </Canvas>
-            <div ref={labelLayer} className="rt-labels" />
-        </>
+            <div
+                ref={labelLayer}
+                className="rt-labels"
+                style={{ '--rt-s': scale } as CSSProperties}
+            />
+        </div>
     );
 }

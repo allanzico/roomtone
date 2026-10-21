@@ -1,0 +1,73 @@
+/*
+ * Roomtone design tokens (docs/design/handoff.md §2). Shared by the host screen and,
+ * later, the setup chat. Use the token names in code, not the raw values.
+ */
+
+:root {
+    /* Space */
+    --rt-space-0: #020203;
+    --rt-space-1: #050509;
+    --rt-space-2: #0b0b16;
+    --rt-bg: radial-gradient(
+        ellipse 80% 60% at 55% 40%,
+        var(--rt-space-2) 0%,
+        var(--rt-space-1) 60%,
+        var(--rt-space-0) 100%
+    );
+
+    /* Ink. Never go fainter than --rt-text-4 for text. */
+    --rt-ink: #ffffff;
+    --rt-text: #ededf2;
+    --rt-text-2: rgb(237 237 242 / 0.78);
+    --rt-text-3: rgb(237 237 242 / 0.6);
+    --rt-text-4: rgb(237 237 242 / 0.55);
+    --rt-line: rgb(237 237 242 / 0.28);
+    --rt-hairline: rgb(237 237 242 / 0.12);
+    --rt-fill: rgb(237 237 242 / 0.1);
+    --rt-fill-hover: rgb(237 237 242 / 0.12);
+
+    /* Ember and the primary button */
+    --rt-ember: #ff8a3d;
+    --rt-cta: linear-gradient(135deg, #ffc08f, #ff8a3d 55%, #d9561c);
+    --rt-cta-ink: #1a0a04;
+    --rt-cta-glow: 0 0 40px rgb(255 138 61 / 0.45);
+
+    /* Genre palette, in the order the agent assigns clusters. Base = dots and bars. */
+    --rt-genre-1: #ff8a3d;
+    --rt-genre-1-light: #ffe0c2;
+    --rt-genre-1-dark: #c7420f;
+    --rt-genre-1-ink: rgb(94 30 5 / 0.7);
+    --rt-genre-2: #ff4fd8;
+    --rt-genre-2-light: #ffb3f0;
+    --rt-genre-2-dark: #c21fa0;
+    --rt-genre-2-ink: rgb(90 10 68 / 0.7);
+    --rt-genre-3: #4c7dff;
+    --rt-genre-3-light: #b3c8ff;
+    --rt-genre-3-dark: #2a4fd0;
+    --rt-genre-3-ink: rgb(14 30 94 / 0.7);
+    --rt-genre-4: #35e8b0;
+    --rt-genre-4-light: #b3ffe4;
+    --rt-genre-4-dark: #14a97a;
+    --rt-genre-4-ink: rgb(6 74 52 / 0.75);
+    --rt-genre-5: #ffc08f;
+    --rt-genre-5-light: #fff0e0;
+    --rt-genre-5-dark: #e08a4a;
+    --rt-genre-5-ink: rgb(90 42 8 / 0.7);
+    --rt-genre-6: #9d8cff;
+    --rt-genre-6-light: #dcd4ff;
+    --rt-genre-6-dark: #5b47d6;
+    --rt-genre-6-ink: rgb(30 20 96 / 0.7);
+
+    /* Type: one family. The Ext face only fills in latin-ext glyphs. */
+    --rt-font:
+        'Bricolage Grotesque', 'Bricolage Grotesque Ext',
+        var(--font-bricolage-grotesque, ui-sans-serif), system-ui, sans-serif;
+
+    /* Spacing and shape */
+    --rt-gutter-tv: 80px;
+    --rt-gutter-laptop: 96px;
+    --rt-gutter-phone: 20px;
+    --rt-chat-col: 900px;
+    --rt-radius-pill: 999px;
+    --rt-tap: 44px;
+}

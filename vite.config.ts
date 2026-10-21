@@ -16,12 +16,23 @@ export default defineConfig({
                 bunny('Instrument Sans', {
                     weights: [400, 500, 600],
                 }),
-                // Display face for the host room. Variable wdth (50–150) and wght (100–900).
-                local('Anybody', {
+                // Host and setup screens. Variable opsz (12–96), wdth (75–100), wght (200–800).
+                local('Bricolage Grotesque', {
                     variants: [
                         {
-                            src: 'resources/fonts/anybody/Anybody-Variable.woff2',
-                            weight: '100 900',
+                            src: 'resources/fonts/bricolage-grotesque/BricolageGrotesque-latin.woff2',
+                            weight: '200 800',
+                        },
+                    ],
+                }),
+                // Latin-ext glyphs (names like Łukasz or Şeyma). A separate family that the
+                // room's font stack falls back to, so it only downloads when a name needs it.
+                local('Bricolage Grotesque Ext', {
+                    preload: false,
+                    variants: [
+                        {
+                            src: 'resources/fonts/bricolage-grotesque/BricolageGrotesque-latin-ext.woff2',
+                            weight: '200 800',
                         },
                     ],
                 }),

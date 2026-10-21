@@ -31,11 +31,12 @@ class DemoPartySeeder extends Seeder
             'host_token' => Str::random(40),
         ]);
 
+        // Positions are spots on the host screen's floor: x −7.2…7.2 left to right, z −3…3 back to front.
         $clusters = collect([
-            'afro' => ['label' => 'Afrobeats', 'color' => '#FF8A3D', 'position' => ['x' => 5.4, 'y' => 0.3, 'z' => 0.9]],
-            'pop' => ['label' => '80s Pop', 'color' => '#FF4FD8', 'position' => ['x' => -5.3, 'y' => 0.4, 'z' => 1.1]],
-            'fado' => ['label' => 'Fado & Saudade', 'color' => '#4C7DFF', 'position' => ['x' => -2.8, 'y' => -0.6, 'z' => -4.8]],
-            'garage' => ['label' => 'UK Garage', 'color' => '#35E8B0', 'position' => ['x' => 3.0, 'y' => -0.8, 'z' => -4.6]],
+            'afro' => ['label' => 'Afrobeats', 'color' => '#FF8A3D', 'position' => ['x' => 2.9, 'y' => 0, 'z' => 0.65]],
+            'pop' => ['label' => '80s Pop', 'color' => '#FF4FD8', 'position' => ['x' => -4.85, 'y' => 0, 'z' => 0.1]],
+            'fado' => ['label' => 'Fado', 'color' => '#4C7DFF', 'position' => ['x' => -1.0, 'y' => 0, 'z' => -1.15]],
+            'garage' => ['label' => 'UK Garage', 'color' => '#35E8B0', 'position' => ['x' => 5.8, 'y' => 0, 'z' => -1.85]],
         ])->map(fn (array $cluster) => $event->tasteClusters()->create($cluster));
 
         $guests = collect([

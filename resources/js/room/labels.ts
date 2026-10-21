@@ -10,3 +10,8 @@ export const labelLayer = createRef<HTMLDivElement>();
 
 /** drei types the portal as non-null; it is only read after mount, once the layer exists. */
 export const labelPortal = labelLayer as RefObject<HTMLElement>;
+
+/** DOM layer behind the canvas for the islands' CSS haze (a blurred glow cheaper than a shader). */
+export const hazeLayer = createRef<HTMLDivElement>();
+
+export const hazePortal = hazeLayer as RefObject<HTMLElement>;
