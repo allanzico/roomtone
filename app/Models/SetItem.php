@@ -16,9 +16,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property SetItemStatus $status
  * @property int|null $reason_guest_id
  * @property string $reason_text
+ * @property int|null $reason_love_id
+ * @property int|null $reason_rank
  * @property-read Track $track
  */
-#[Fillable(['track_id', 'position', 'status', 'reason_guest_id', 'reason_text'])]
+#[Fillable(['track_id', 'position', 'status', 'reason_guest_id', 'reason_text', 'reason_love_id', 'reason_rank'])]
 #[WithoutTimestamps]
 class SetItem extends Model
 {

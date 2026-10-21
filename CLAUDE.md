@@ -105,3 +105,12 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 ## DJ agent design (validated by spikes, Oct 2026)
 
 Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stage 1 per guest (queued job: one Haiku pick call per guest, per-love single-signal Qloo calls, stored pools), stage 2 picks only from stored pools through a validating `add_track` tool, code writes every "because X loves Y" reason, host requests use request pools, global cap of 3 concurrent Qloo calls with 429 retry. Haiku is the model for the demo. Reference scripts: `docs/spikes/` (their outputs hold Qloo data and must stay out of the repo).
+
+## DJ agent as built (Phase 5)
+
+- Laravel AI SDK (`config/ai.php`): Anthropic only; every model slot is `AI_MODEL` (Haiku). The SDK's own default is Sonnet, so never remove that pinning.
+- Stage 1: `ResolveGuest` job → `Services/Dj/GuestResolver` → `Ai/Agents/LovePicker` (structured output, no tools). Loves are cleaned to 80 chars (`GuestResolver::clean`) and sent as labelled untrusted data. Results go on `guest_loves`: `status` (pending|resolved|unresolved) and `pool` (Qloo's 15 ranked artists, kept so sets rebuild and reasons re-verify without Qloo).
+- Stage 2: `BuildSet` job (unique per event until it starts, dispatched 20s after each resolved guest) → `Services/Dj/SetBuilder` → `Ai/Agents/DjAgent` with the `Ai/Tools/AddTrack` tool → `Services/Dj/SetValidator` (every add_track rule, plus `no_video` through `TrackResolver`). The agent addresses guests and loves by numeric id. Played and playing tracks are kept; the queued part is replaced.
+- Reasons are written by `SetValidator`: "because Maria loves Ozark", plus "and Lena loves Dark" when another guest's love ranks the same artist in Qloo's top 5. `set_items.reason_love_id` and `reason_rank` make each one checkable against the stored pool.
+- Haiku sends many add_track calls in one response: `DjAgent` needs a high `MaxTokens` (a response cut off at the limit silently drops all its tool calls; `SetBuilder` logs a warning when that happens).
+- Try it: `php artisan roomtone:party database/parties/rooftop.json` (fictional guests; live Qloo, Anthropic and YouTube calls; prints time, tokens, cost and 429s). `--stage1-only` for load tests (`database/parties/fifty.json`).

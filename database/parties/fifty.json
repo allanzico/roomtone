@@ -1,0 +1,405 @@
+{
+  "name": "Fifty guests (load test)",
+  "guests": [
+    {
+      "name": "Ada",
+      "loves": [
+        "The Wire",
+        "Barcelona",
+        "Fela Kuti"
+      ]
+    },
+    {
+      "name": "Ben",
+      "loves": [
+        "Mad Men",
+        "Dakar",
+        "Erykah Badu"
+      ]
+    },
+    {
+      "name": "Cleo",
+      "loves": [
+        "The Sopranos",
+        "Rio de Janeiro",
+        "pierogi"
+      ]
+    },
+    {
+      "name": "Dami",
+      "loves": [
+        "Severance",
+        "Detroit",
+        "salsa dancing"
+      ]
+    },
+    {
+      "name": "Eli",
+      "loves": [
+        "Ted Lasso",
+        "Stockholm",
+        "Frank Ocean"
+      ]
+    },
+    {
+      "name": "Femi",
+      "loves": [
+        "The Bear",
+        "Beirut",
+        "ABBA"
+      ]
+    },
+    {
+      "name": "Gia",
+      "loves": [
+        "Normal People",
+        "Jakarta",
+        "ceviche"
+      ]
+    },
+    {
+      "name": "Hugo",
+      "loves": [
+        "Killing Eve",
+        "Manchester",
+        "Nike"
+      ]
+    },
+    {
+      "name": "Ines",
+      "loves": [
+        "Atlanta",
+        "Kingston",
+        "Daft Punk"
+      ]
+    },
+    {
+      "name": "Jun",
+      "loves": [
+        "Fargo",
+        "Addis Ababa",
+        "Massive Attack"
+      ]
+    },
+    {
+      "name": "Kemi",
+      "loves": [
+        "True Detective",
+        "Montreal",
+        "Harry Potter books"
+      ]
+    },
+    {
+      "name": "Luca",
+      "loves": [
+        "Black Mirror",
+        "Oslo",
+        "IKEA"
+      ]
+    },
+    {
+      "name": "Mia",
+      "loves": [
+        "The Crown",
+        "Athens",
+        "Bob Marley"
+      ]
+    },
+    {
+      "name": "Nate",
+      "loves": [
+        "Narcos",
+        "Manila",
+        "Tame Impala"
+      ]
+    },
+    {
+      "name": "Olu",
+      "loves": [
+        "Mindhunter",
+        "Dublin",
+        "The Lord of the Rings"
+      ]
+    },
+    {
+      "name": "Pia",
+      "loves": [
+        "Twin Peaks",
+        "Nashville",
+        "The Simpsons"
+      ]
+    },
+    {
+      "name": "Quinn",
+      "loves": [
+        "The Office",
+        "Kinshasa",
+        "Radiohead"
+      ]
+    },
+    {
+      "name": "Ravi",
+      "loves": [
+        "Parks and Recreation",
+        "Lima",
+        "dim sum"
+      ]
+    },
+    {
+      "name": "Sade",
+      "loves": [
+        "Schitt's Creek",
+        "Reykjavik",
+        "Zelda games"
+      ]
+    },
+    {
+      "name": "Theo",
+      "loves": [
+        "Gilmore Girls",
+        "Naples",
+        "Christopher Nolan films"
+      ]
+    },
+    {
+      "name": "Uma",
+      "loves": [
+        "Friends",
+        "Bangkok",
+        "Kendrick Lamar"
+      ]
+    },
+    {
+      "name": "Vic",
+      "loves": [
+        "Seinfeld",
+        "Auckland",
+        "croissants"
+      ]
+    },
+    {
+      "name": "Wes",
+      "loves": [
+        "Sex and the City",
+        "New Orleans",
+        "skateboarding"
+      ]
+    },
+    {
+      "name": "Xena",
+      "loves": [
+        "Downton Abbey",
+        "Cape Town",
+        "Marvel movies"
+      ]
+    },
+    {
+      "name": "Yara",
+      "loves": [
+        "Sherlock",
+        "Bogotá",
+        "Bon Iver"
+      ]
+    },
+    {
+      "name": "Zane",
+      "loves": [
+        "Doctor Who",
+        "Seattle",
+        "sushi"
+      ]
+    },
+    {
+      "name": "Abi",
+      "loves": [
+        "The Mandalorian",
+        "Marseille",
+        "yoga"
+      ]
+    },
+    {
+      "name": "Bo",
+      "loves": [
+        "Game of Thrones",
+        "Delhi",
+        "Rosalía"
+      ]
+    },
+    {
+      "name": "Cyrus",
+      "loves": [
+        "House of the Dragon",
+        "Melbourne",
+        "Prince"
+      ]
+    },
+    {
+      "name": "Dina",
+      "loves": [
+        "The Last of Us",
+        "Havana",
+        "tagine"
+      ]
+    },
+    {
+      "name": "Emre",
+      "loves": [
+        "Arcane",
+        "Johannesburg",
+        "Vogue magazine"
+      ]
+    },
+    {
+      "name": "Fola",
+      "loves": [
+        "Cowboy Bebop",
+        "Mexico City",
+        "Björk"
+      ]
+    },
+    {
+      "name": "Gus",
+      "loves": [
+        "Avatar: The Last Airbender",
+        "Memphis",
+        "Stevie Wonder"
+      ]
+    },
+    {
+      "name": "Hiro",
+      "loves": [
+        "Westworld",
+        "Paris",
+        "barbecue brisket"
+      ]
+    },
+    {
+      "name": "Ivy",
+      "loves": [
+        "Better Call Saul",
+        "Karachi",
+        "Patagonia"
+      ]
+    },
+    {
+      "name": "Jide",
+      "loves": [
+        "Yellowstone",
+        "Taipei",
+        "Nina Simone"
+      ]
+    },
+    {
+      "name": "Kai",
+      "loves": [
+        "Shogun",
+        "Istanbul",
+        "Sade"
+      ]
+    },
+    {
+      "name": "Lola",
+      "loves": [
+        "Slow Horses",
+        "Nairobi",
+        "Murakami novels"
+      ]
+    },
+    {
+      "name": "Milo",
+      "loves": [
+        "Only Murders in the Building",
+        "Buenos Aires",
+        "Lego"
+      ]
+    },
+    {
+      "name": "Nia",
+      "loves": [
+        "Abbott Elementary",
+        "Lyon",
+        "Fleetwood Mac"
+      ]
+    },
+    {
+      "name": "Otto",
+      "loves": [
+        "Reservation Dogs",
+        "Amsterdam",
+        "pho"
+      ]
+    },
+    {
+      "name": "Pele",
+      "loves": [
+        "Beef",
+        "Dubai",
+        "Pokémon"
+      ]
+    },
+    {
+      "name": "Rae",
+      "loves": [
+        "Fleishman Is in Trouble",
+        "Shanghai",
+        "Pixar films"
+      ]
+    },
+    {
+      "name": "Sol",
+      "loves": [
+        "The Leftovers",
+        "Marrakech",
+        "Beyoncé"
+      ]
+    },
+    {
+      "name": "Tia",
+      "loves": [
+        "Mr. Robot",
+        "Accra",
+        "paella"
+      ]
+    },
+    {
+      "name": "Udo",
+      "loves": [
+        "Halt and Catch Fire",
+        "São Paulo",
+        "Minecraft"
+      ]
+    },
+    {
+      "name": "Vera",
+      "loves": [
+        "Luther",
+        "Chicago",
+        "Star Wars"
+      ]
+    },
+    {
+      "name": "Wale",
+      "loves": [
+        "Line of Duty",
+        "Copenhagen",
+        "Dua Lipa"
+      ]
+    },
+    {
+      "name": "Yusuf",
+      "loves": [
+        "Happy Valley",
+        "Tel Aviv",
+        "biryani"
+      ]
+    },
+    {
+      "name": "Zuri",
+      "loves": [
+        "Derry Girls",
+        "Osaka",
+        "surfing"
+      ]
+    }
+  ]
+}
