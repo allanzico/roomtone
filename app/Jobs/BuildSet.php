@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Events\RoomUpdated;
 use App\Models\Event;
 use App\Services\Dj\GuestClusterer;
 use App\Services\Dj\SetBuilder;
@@ -36,6 +37,7 @@ class BuildSet implements ShouldBeUniqueUntilProcessing, ShouldQueue
         // Islands first, so the set and the islands the host screen shows come from the same guests.
         $clusterer->cluster($this->event);
         $result = $builder->build($this->event);
+        RoomUpdated::for($this->event);
 
         Log::info('DJ set built', ['event' => $this->event->code, ...array_diff_key($result, ['usage' => 1, 'log' => 1]),
             'rejections' => array_count_values(array_filter($result['log'], fn (string $code) => $code !== 'ok'))]);

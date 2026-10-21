@@ -5,6 +5,12 @@ import { initializeTheme } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import { configureEcho } from '@laravel/echo-react';
+
+// Realtime from Laravel Reverb: guests landing in the room, set and island updates, the DJ's answers.
+configureEcho({
+    broadcaster: 'reverb',
+});
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -14,6 +20,8 @@ void createInertiaApp({
         switch (true) {
             case name === 'welcome':
             case name === 'HostRoom':
+            case name === 'Join':
+            case name === 'Guest':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

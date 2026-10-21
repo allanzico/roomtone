@@ -48,8 +48,17 @@ export type HostRequestState = {
     reply: string | null;
 };
 
+export type JoinInfo = {
+    /** The join page guests open by scanning the QR. */
+    url: string;
+    host: string;
+    /** SVG markup of the QR code, drawn by the server. */
+    qr: string;
+};
+
 export type HostRoomProps = {
     event: RoomEvent;
+    join: JoinInfo;
     clusters: Cluster[];
     guests: Guest[];
     nowPlaying: SetItem | null;

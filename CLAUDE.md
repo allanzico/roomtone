@@ -129,3 +129,11 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 - "Try a demo party" (`POST /demo`, welcome page) copies `DEMO` into a new event (`events.demo = true`, own code and host key) from the database alone, then redirects to its host link. `model:prune` (daily) deletes copies older than a day.
 - `Services/Dj/EnergyArc`: target energy per upcoming slot (3.5 min a track) from `events.energy_plan` (clock times, crossing midnight; a default warm/build/peak/wind-down arc without a plan); `SetBuilder` orders each new set to follow it, never the same guest twice in a row. The host screen's energy follows the playing track's energy. Plan times are in the app timezone (UTC) until the setup chat asks the host's.
 - Starfield values are rounded: the welcome page is server-rendered and unrounded floats broke hydration.
+
+## Guest join and realtime (Phase 2, built after Phase 7)
+
+- Guests: `/e/{code}` (join: name ≤ 40, exactly three loves ≤ 80, trimmed) → `POST /e/{code}/guests` → `/e/{code}/me` (how each love was read, then their song and how far away it is). A cookie `roomtone_guest_{CODE}` (48 h) remembers the phone; a returning phone goes to its page instead of joining twice. Demo copies can be joined.
+- The host screen's QR is an SVG of the join link drawn server-side with `bacon/bacon-qr-code` (already installed via Fortify). No JS QR library.
+- Realtime is Laravel Reverb (`php artisan dev` starts it on :8080; deploy must run `php artisan reverb:start` and proxy websockets). Public channel `room.{CODE}`: `GuestJoined` (the guest, so the point lands at once) and `RoomUpdated` (empty: screens reload their props) after stage 1, set builds and host requests. Tests broadcast to the `null` driver.
+- Reverb needs `guzzlehttp/psr7` ^2, so Guzzle is 7.x (not 8). `@babel/core` is pinned as a dev dependency: adding the Echo packages made npm drop it as an auto-installed peer and broke the Vite build.
+- `php artisan install:broadcasting` needs a TTY for its npm step and edits files even with `--pretend`; it was finished by hand (see git history).

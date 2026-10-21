@@ -8,6 +8,10 @@ use App\Models\Guest;
 use App\Models\GuestLove;
 use App\Models\SetItem;
 use App\Models\TasteCluster;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -62,6 +66,8 @@ class HostRoomController extends Controller
             ])->values(),
             'nowPlaying' => $nowPlaying ? $this->setItem($nowPlaying) : null,
             'queue' => $set->where('status', SetItemStatus::Queued)->map($this->setItem(...))->values(),
+            // What guests scan: the join page, as a QR the server draws (no JavaScript QR library).
+            'join' => $this->join($event->code),
             // Only for the host link: the key the screen sends back with requests and playback updates.
             'hostKey' => $isHost ? $key : null,
             'latestRequest' => $latest === null ? null : [
@@ -71,6 +77,21 @@ class HostRoomController extends Controller
                 'reply' => $latest->reply,
             ],
         ]);
+    }
+
+    /**
+     * @return array{url: string, host: string, qr: string}
+     */
+    private function join(string $code): array
+    {
+        $url = route('events.join', $code);
+        $svg = (new Writer(new ImageRenderer(new RendererStyle(240, 0), new SvgImageBackEnd)))->writeString($url);
+
+        return [
+            'url' => $url,
+            'host' => (string) parse_url($url, PHP_URL_HOST),
+            'qr' => trim((string) preg_replace('/^<\?xml[^>]*>/', '', $svg)),
+        ];
     }
 
     /**

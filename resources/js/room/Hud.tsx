@@ -208,23 +208,25 @@ function GenreDots() {
 
 function Join({ large }: { large: boolean }) {
     const code = useRoom((s) => s.event.code);
+    const join = useRoom((s) => s.join);
 
     return (
         <aside
             className="rt-join"
             data-large={large}
-            aria-label="Join the room"
+            aria-label={`Join the room at ${join.host}, code ${code}`}
         >
             <div className="rt-join-text">
-                <p className="rt-join-url">roomtone.app</p>
+                <p className="rt-join-url">{join.host}</p>
                 <p className="rt-code">{code}</p>
             </div>
-            {/* Placeholder until the real QR code arrives with the guest join flow (Phase 2). */}
-            <div className="rt-qr" aria-hidden="true">
-                <span data-corner="tl" />
-                <span data-corner="tr" />
-                <span data-corner="bl" />
-            </div>
+            {/* Drawn by the server from the join link; trusted markup. */}
+            <div
+                className="rt-qr"
+                role="img"
+                aria-label="QR code to join"
+                dangerouslySetInnerHTML={{ __html: join.qr }}
+            />
         </aside>
     );
 }

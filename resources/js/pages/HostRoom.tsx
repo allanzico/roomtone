@@ -1,4 +1,5 @@
-import { Head, usePoll } from '@inertiajs/react';
+import { Head, router, usePoll } from '@inertiajs/react';
+import { useEchoPublic } from '@laravel/echo-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useHostSync } from '@/room/hostSync';
 import { Hud } from '@/room/Hud';
@@ -7,7 +8,7 @@ import { Scene } from '@/room/Scene';
 import { computeStage } from '@/room/stage';
 import { Starfield } from '@/room/Starfield';
 import { useRoom } from '@/room/store';
-import type { HostRoomProps } from '@/room/types';
+import type { Guest, HostRoomProps } from '@/room/types';
 import { useDevKeys } from '@/room/useDevKeys';
 import '../../css/tokens.css';
 import '@/room/room.css';
@@ -72,7 +73,33 @@ export default function HostRoom(props: HostRoomProps) {
         useRoom.getState().syncFromServer(props);
     }, [props]);
 
-    // While the DJ works on a request, check every 3s for its answer and the new set.
+    // Live room: a guest's point lands the moment they join; anything else the server changes (loves read,
+    // islands and set rebuilt, a request answered) reloads what the screen shows.
+    useEchoPublic<{ guest?: Guest }>(
+        `room.${props.event.code}`,
+        ['GuestJoined', 'RoomUpdated'],
+        (payload) => {
+            if (payload.guest) {
+                useRoom
+                    .getState()
+                    .addGuest({ ...payload.guest, arrivedLive: true });
+
+                return;
+            }
+
+            router.reload({
+                only: [
+                    'latestRequest',
+                    'nowPlaying',
+                    'queue',
+                    'clusters',
+                    'guests',
+                ],
+            });
+        },
+    );
+
+    // While the DJ works on a request, also check every 3s, in case the live connection drops.
     const pending = props.latestRequest?.status === 'pending';
     const poll = usePoll(
         3000,

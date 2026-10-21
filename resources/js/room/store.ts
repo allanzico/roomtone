@@ -6,6 +6,7 @@ import type {
     Guest,
     HostRequestState,
     HostRoomProps,
+    JoinInfo,
     RoomEvent,
     SetItem,
 } from './types';
@@ -30,6 +31,7 @@ type RoomState = {
     /** Realtime connection dropped (Phase 2+). The last state stays on screen. */
     reconnecting: boolean;
     stage: Stage;
+    join: JoinInfo;
     /** Host link key, or null on a view-only screen. */
     hostKey: string | null;
     latestRequest: HostRequestState | null;
@@ -60,6 +62,7 @@ export const useRoom = create<RoomState>()((set) => ({
     started: false,
     paused: false,
     reconnecting: false,
+    join: { url: '', host: '', qr: '' },
     hostKey: null,
     latestRequest: null,
     askOpen: false,
@@ -76,6 +79,7 @@ export const useRoom = create<RoomState>()((set) => ({
             nowPlaying: props.nowPlaying,
             queue: props.queue,
             energy: clampEnergy(props.event.energy),
+            join: props.join,
             hostKey: props.hostKey,
             latestRequest: props.latestRequest,
         }),
@@ -99,7 +103,13 @@ export const useRoom = create<RoomState>()((set) => ({
 
     setAskOpen: (askOpen) => set({ askOpen }),
 
-    addGuest: (guest) => set((state) => ({ guests: [...state.guests, guest] })),
+    // A guest who is already in the room (a repeated live event) is not added twice.
+    addGuest: (guest) =>
+        set((state) =>
+            state.guests.some((g) => g.id === guest.id)
+                ? {}
+                : { guests: [...state.guests, guest] },
+        ),
 
     // With the host key the server owns the set and a played track is done. A view-only screen (no key) loops
     // the played track to the end of the queue so the room never runs dry.

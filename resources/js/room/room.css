@@ -1041,6 +1041,109 @@
     }
 }
 
+/* ---------- Guest phone: join and "you're in" ---------- */
+
+.rt-guest {
+    min-height: 100vh;
+}
+
+.rt-guest-body {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 64px var(--rt-gutter-phone) 48px;
+}
+
+.rt-guest-title {
+    color: var(--rt-ink);
+    font-size: clamp(32px, 9vw, 48px);
+    font-weight: 700;
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+}
+
+.rt-guest-lede {
+    color: var(--rt-text-2);
+    font-size: 17px;
+    line-height: 1.45;
+}
+
+.rt-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.rt-field-label {
+    color: var(--rt-text-4);
+    font-size: 14px;
+}
+
+.rt-field-error {
+    color: var(--rt-ember);
+    font-size: 14px;
+}
+
+.rt-guest-cta {
+    align-self: stretch;
+    margin-top: 10px;
+}
+
+.rt-guest-loves {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    list-style: none;
+}
+
+.rt-guest-loves li {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rt-hairline);
+    color: var(--rt-ink);
+    font-size: 18px;
+}
+
+.rt-guest-love-status {
+    flex: none;
+    color: var(--rt-text-4);
+    font-size: 14px;
+}
+
+.rt-guest-loves li[data-status='resolved'] .rt-guest-love-status {
+    color: var(--rt-ember);
+}
+
+.rt-guest-song {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.rt-guest-song-title {
+    color: var(--rt-ink);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+/* The join QR, drawn by the server. */
+.rt-qr {
+    padding: 8px;
+}
+
+.rt-qr svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
 /* ---------- Motion ---------- */
 
 @keyframes rt-fade-in {

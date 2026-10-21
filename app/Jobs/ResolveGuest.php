@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Events\RoomUpdated;
 use App\Models\Guest;
 use App\Services\Dj\GuestResolver;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -29,6 +30,7 @@ class ResolveGuest implements ShouldQueue
     public function handle(GuestResolver $resolver): void
     {
         $resolver->resolve($this->guest);
+        RoomUpdated::for($this->guest->event);
 
         BuildSet::dispatch($this->guest->event)->delay(now()->addSeconds(BuildSet::DEBOUNCE_SECONDS));
     }
