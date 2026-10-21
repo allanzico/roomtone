@@ -39,11 +39,27 @@ class Event extends Model
     }
 
     /**
+     * @return HasMany<HostRequest, $this>
+     */
+    public function hostRequests(): HasMany
+    {
+        return $this->hasMany(HostRequest::class);
+    }
+
+    /**
      * @return HasMany<SetItem, $this>
      */
     public function setItems(): HasMany
     {
         return $this->hasMany(SetItem::class);
+    }
+
+    /**
+     * Whether a key from the host link opens host controls (requests, playback sync).
+     */
+    public function isHostKey(mixed $key): bool
+    {
+        return is_string($key) && $key !== '' && hash_equals($this->host_token, $key);
     }
 
     /**

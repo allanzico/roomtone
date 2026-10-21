@@ -40,10 +40,21 @@ export type SetItem = {
     reasonText: string;
 };
 
+export type HostRequestState = {
+    id: number;
+    text: string;
+    status: 'pending' | 'done' | 'no_change' | 'failed';
+    /** The DJ's one-line answer, once it has one. */
+    reply: string | null;
+};
+
 export type HostRoomProps = {
     event: RoomEvent;
     clusters: Cluster[];
     guests: Guest[];
     nowPlaying: SetItem | null;
     queue: SetItem[];
+    /** Present only when the page was opened with the host link: unlocks requests and playback sync. */
+    hostKey: string | null;
+    latestRequest: HostRequestState | null;
 };

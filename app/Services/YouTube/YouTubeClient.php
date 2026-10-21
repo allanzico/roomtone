@@ -27,7 +27,7 @@ class YouTubeClient
     public function search(string $query, int $max = 6): array
     {
         if (Cache::has(self::QUOTA_OUT)) {
-            throw new YouTubeException('YouTube search quota is used up until midnight Pacific time.');
+            throw new YouTubeException('YouTube search is paused: the search quota is used up for now.');
         }
 
         /** @var list<array<string, mixed>> $items */
@@ -108,12 +108,26 @@ class YouTubeClient
         return (array) $response->json();
     }
 
+    /**
+     * Stop searching when Google says the search quota is used up: until midnight Pacific time for the daily
+     * bucket (a 403 quotaExceeded, or a 429 whose details name a per-day limit), for a minute on any other 429.
+     */
     private function noteQuota(string $method, Response $response): void
     {
-        $reason = $response->json('error.errors.0.reason');
+        if ($method !== 'search') {
+            return;
+        }
 
-        if ($method === 'search' && in_array($reason, ['quotaExceeded', 'dailyLimitExceeded'], true)) {
+        $reason = $response->json('error.errors.0.reason');
+        $limits = collect((array) $response->json('error.details'))
+            ->map(fn ($detail) => is_array($detail) ? (string) ($detail['metadata']['quota_limit'] ?? '') : '');
+        $daily = in_array($reason, ['quotaExceeded', 'dailyLimitExceeded'], true)
+            || $limits->contains(fn (string $limit) => str_contains($limit, 'PerDay'));
+
+        if ($daily) {
             Cache::put(self::QUOTA_OUT, true, now('America/Los_Angeles')->addDay()->startOfDay());
+        } elseif ($response->status() === 429) {
+            Cache::put(self::QUOTA_OUT, true, now()->addMinute());
         }
     }
 }

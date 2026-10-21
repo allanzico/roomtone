@@ -1,5 +1,6 @@
-import { Head } from '@inertiajs/react';
-import { useCallback, useEffect, useState } from 'react';
+import { Head, usePoll } from '@inertiajs/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useHostSync } from '@/room/hostSync';
 import { Hud } from '@/room/Hud';
 import { live } from '@/room/live';
 import { Scene } from '@/room/Scene';
@@ -30,8 +31,14 @@ function writeHintHidden(hidden: boolean): void {
 }
 
 export default function HostRoom(props: HostRoomProps) {
-    // Load the server props into the store before the first render of the scene.
-    useState(() => {
+    // Load the server props into the store before the first render of the scene. If the page remounts for the
+    // same event (Inertia after a request), the store is already live and subscribed: sync it in an effect
+    // instead, never during render.
+    const [loadedNow] = useState(() => {
+        if (useRoom.getState().event.code === props.event.code) {
+            return false;
+        }
+
         useRoom.getState().init(props);
         live.energy = props.event.energy;
         live.heat = (props.event.energy - 1) / 4;
@@ -51,6 +58,42 @@ export default function HostRoom(props: HostRoomProps) {
     }, []);
 
     useDevKeys(toggleHint);
+    useHostSync();
+
+    // Fresh props after a request or a poll: the server's set, islands and the DJ's answer.
+    const first = useRef(loadedNow);
+    useEffect(() => {
+        if (first.current) {
+            first.current = false;
+
+            return;
+        }
+
+        useRoom.getState().syncFromServer(props);
+    }, [props]);
+
+    // While the DJ works on a request, check every 3s for its answer and the new set.
+    const pending = props.latestRequest?.status === 'pending';
+    const poll = usePoll(
+        3000,
+        {
+            only: [
+                'latestRequest',
+                'nowPlaying',
+                'queue',
+                'clusters',
+                'guests',
+            ],
+        },
+        { autoStart: false },
+    );
+    useEffect(() => {
+        if (pending) {
+            poll.start();
+        } else {
+            poll.stop();
+        }
+    }, [pending, poll]);
 
     useEffect(() => {
         const onResize = () =>

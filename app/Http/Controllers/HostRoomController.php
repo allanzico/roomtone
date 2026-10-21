@@ -8,15 +8,17 @@ use App\Models\Guest;
 use App\Models\GuestLove;
 use App\Models\SetItem;
 use App\Models\TasteCluster;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class HostRoomController extends Controller
 {
     /**
-     * The host screen: the 3D room that goes up on the TV next to the speaker.
+     * The host screen: the 3D room that goes up on the TV next to the speaker. With the host key from the host
+     * link (?key=…) it also takes requests and keeps the server's set in step with what plays.
      */
-    public function __invoke(string $code): Response
+    public function __invoke(Request $request, string $code): Response
     {
         $event = Event::query()
             ->where('code', strtoupper($code))
@@ -30,6 +32,9 @@ class HostRoomController extends Controller
             ->get();
 
         $nowPlaying = $set->firstWhere('status', SetItemStatus::Playing);
+        $key = $request->query('key');
+        $isHost = $event->isHostKey($key);
+        $latest = $isHost ? $event->hostRequests()->latest('id')->first() : null;
 
         return Inertia::render('HostRoom', [
             'event' => [
@@ -56,6 +61,14 @@ class HostRoomController extends Controller
             ])->values(),
             'nowPlaying' => $nowPlaying ? $this->setItem($nowPlaying) : null,
             'queue' => $set->where('status', SetItemStatus::Queued)->map($this->setItem(...))->values(),
+            // Only for the host link: the key the screen sends back with requests and playback updates.
+            'hostKey' => $isHost ? $key : null,
+            'latestRequest' => $latest === null ? null : [
+                'id' => $latest->id,
+                'text' => $latest->text,
+                'status' => $latest->status->value,
+                'reply' => $latest->reply,
+            ],
         ]);
     }
 

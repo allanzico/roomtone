@@ -79,12 +79,40 @@ test('a used-up search quota stops searching until midnight Pacific time', funct
     $youtube = app(YouTubeClient::class);
 
     expect(fn () => $youtube->search('a'))->toThrow(YouTubeException::class, 'exceeded your quota');
-    expect(fn () => $youtube->search('b'))->toThrow(YouTubeException::class, 'until midnight');
+    expect(fn () => $youtube->search('b'))->toThrow(YouTubeException::class, 'search is paused');
     Http::assertSentCount(1);
 
     $this->travelTo(now('America/Los_Angeles')->addDay()->startOfDay()->addMinute());
     expect(fn () => $youtube->search('c'))->toThrow(YouTubeException::class, 'exceeded your quota');
     Http::assertSentCount(2);
+});
+
+test('the daily search bucket answering 429 also stops searching until midnight Pacific time', function () {
+    Http::fake(['yt.test/search*' => Http::response(['error' => [
+        'code' => 429,
+        'message' => "Quota exceeded for quota metric 'Search Queries' and limit 'Search Queries per day'",
+        'errors' => [['reason' => 'rateLimitExceeded']],
+        'details' => [['@type' => 'type.googleapis.com/google.rpc.ErrorInfo', 'metadata' => ['quota_limit' => 'defaultSearchListPerDayPerProject']]],
+    ]], 429)]);
+    $youtube = app(YouTubeClient::class);
+
+    expect(fn () => $youtube->search('a'))->toThrow(YouTubeException::class, '429');
+    $this->travel(2)->hours();
+    expect(fn () => $youtube->search('b'))->toThrow(YouTubeException::class, 'search is paused');
+    Http::assertSentCount(1);
+});
+
+test('a short 429 on search pauses searching for a minute', function () {
+    Http::fake(['yt.test/search*' => Http::sequence()
+        ->push(['error' => ['message' => 'slow down', 'errors' => [['reason' => 'rateLimitExceeded']]]], 429)
+        ->push(['items' => []]),
+    ]);
+    $youtube = app(YouTubeClient::class);
+
+    expect(fn () => $youtube->search('a'))->toThrow(YouTubeException::class);
+    expect(fn () => $youtube->search('b'))->toThrow(YouTubeException::class, 'search is paused');
+    $this->travel(61)->seconds();
+    expect($youtube->search('c'))->toBe([]);
 });
 
 test('a missing key fails loudly', function () {

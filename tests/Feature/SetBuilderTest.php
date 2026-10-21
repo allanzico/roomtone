@@ -149,7 +149,7 @@ test('a rebuild keeps played and playing tracks, never repeats their artists, an
             [1, SetItemStatus::Playing, 'Brent Cobb'],
             [2, SetItemStatus::Queued, 'Mariza'],
         ]);
-    DjAgent::assertPrompted(fn ($p) => $p->contains('Already played tonight, do not repeat: Brent Cobb'));
+    DjAgent::assertPrompted(fn ($p) => $p->contains('Already played or coming up, do not repeat: Brent Cobb'));
 });
 
 test('a party where nobody could be read builds nothing and never calls the model', function () {

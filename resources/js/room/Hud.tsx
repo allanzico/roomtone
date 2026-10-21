@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { AskDj } from './AskDj';
 import { guestColor, listOf, mixBar, mixOf } from './genres';
 import type { MixSegment } from './genres';
 import { reducedMotion } from './stage';
@@ -64,10 +65,21 @@ function TvHud({
     const stage = useRoom((s) => s.stage);
     const playable = useRoom(hasVideo);
 
+    const host = useRoom((s) => s.hostKey !== null);
+    const askOpen = useRoom((s) => s.askOpen);
+    const asking = useRoom((s) => s.latestRequest?.status === 'pending');
+    const showAsk = host && (askOpen || asking);
+
     return (
         <>
             <Header />
-            {showHint && <KeyHint onDismiss={onDismissHint} />}
+            {showAsk ? (
+                <div className="rt-ask-tv">
+                    <AskDj autoFocus={askOpen} />
+                </div>
+            ) : (
+                showHint && <KeyHint onDismiss={onDismissHint} />
+            )}
             <Join large={empty} />
             {empty ? (
                 <p className="rt-warming">The room warms up as people join</p>
@@ -93,9 +105,10 @@ function TvHud({
 
 function PhoneHud({ poolBottom }: { poolBottom: number }) {
     const empty = useRoom((s) => s.guests.length === 0);
+    const host = useRoom((s) => s.hostKey !== null);
 
     return (
-        <div className="rt-phone">
+        <div className="rt-phone" data-host={host}>
             <Header />
             <div className="rt-phone-body" style={{ top: poolBottom }}>
                 {empty ? (
@@ -110,6 +123,7 @@ function PhoneHud({ poolBottom }: { poolBottom: number }) {
                     </>
                 )}
             </div>
+            {host && <AskDj />}
             <PlaybackBar />
         </div>
     );
@@ -637,8 +651,20 @@ function PlayIcon() {
 /* ---------- Dev ---------- */
 
 function KeyHint({ onDismiss }: { onDismiss: () => void }): ReactNode {
+    const host = useRoom((s) => s.hostKey !== null);
+    const setAskOpen = useRoom((s) => s.setAskOpen);
+
     return (
         <div className="rt-hint" role="note">
+            {host && (
+                <button
+                    type="button"
+                    className="rt-hint-ask"
+                    onClick={() => setAskOpen(true)}
+                >
+                    <kbd>/</kbd> ask the DJ
+                </button>
+            )}
             <span>
                 <kbd>G</kbd> add a guest
             </span>

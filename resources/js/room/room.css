@@ -845,6 +845,148 @@
     font-size: var(--rt-fs-micro);
 }
 
+/* ---------- Ask the DJ ---------- */
+
+.rt-stage .rt-ask-tv {
+    position: absolute;
+    top: 52px;
+    left: 50%;
+    width: 760px;
+    translate: -50% 0;
+}
+
+.rt-ask {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: auto;
+}
+
+.rt-ask-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.rt-ask-input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 0;
+    border: 0;
+    border-bottom: 2px solid var(--rt-line);
+    background: transparent;
+    color: var(--rt-ink);
+    font: inherit;
+    font-size: var(--rt-fs-list);
+    outline: none;
+}
+
+.rt-ask-input::placeholder {
+    color: var(--rt-text-4);
+}
+
+.rt-ask-input:focus {
+    border-bottom-color: var(--rt-ember);
+}
+
+.rt-ask-send {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: var(--rt-tap);
+    height: var(--rt-tap);
+    border: 0;
+    border-radius: var(--rt-radius-pill);
+    background: var(--rt-fill);
+    color: var(--rt-ink);
+    font: inherit;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.rt-ask-send:hover {
+    background: var(--rt-fill-hover);
+}
+
+.rt-ask-send:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.rt-dj {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--rt-ink);
+    font-size: var(--rt-fs-list);
+    line-height: 1.35;
+}
+
+.rt-dj-dot {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle at 35% 35%,
+        #ffe0c2,
+        #ff8a3d 55%,
+        #c7420f
+    );
+    box-shadow: 0 0 14px rgb(255 138 61 / 0.6);
+}
+
+.rt-dj-thinking {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.rt-dj-thinking span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--rt-ember);
+    animation: rt-think 1.2s ease-in-out infinite;
+}
+
+.rt-dj-thinking span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.rt-dj-thinking span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes rt-think {
+    0%,
+    100% {
+        opacity: 0.25;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+.rt-hint .rt-hint-ask {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    color: var(--rt-text-4);
+    font-size: var(--rt-fs-micro);
+}
+
+.rt-phone .rt-ask {
+    position: absolute;
+    right: var(--rt-gutter-phone);
+    bottom: 96px;
+    left: var(--rt-gutter-phone);
+}
+
+.rt-phone[data-host='true'] .rt-phone-body {
+    bottom: 170px;
+}
+
 /* ---------- Motion ---------- */
 
 @keyframes rt-fade-in {

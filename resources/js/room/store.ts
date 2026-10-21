@@ -4,6 +4,7 @@ import type { Stage } from './stage';
 import type {
     Cluster,
     Guest,
+    HostRequestState,
     HostRoomProps,
     RoomEvent,
     SetItem,
@@ -29,7 +30,15 @@ type RoomState = {
     /** Realtime connection dropped (Phase 2+). The last state stays on screen. */
     reconnecting: boolean;
     stage: Stage;
+    /** Host link key, or null on a view-only screen. */
+    hostKey: string | null;
+    latestRequest: HostRequestState | null;
+    /** TV: the "ask the DJ" composer is open (press /). */
+    askOpen: boolean;
     init: (props: HostRoomProps) => void;
+    /** Fresh server props (after a request or a poll): the server owns the set when there is a host key. */
+    syncFromServer: (props: HostRoomProps) => void;
+    setAskOpen: (open: boolean) => void;
     addGuest: (guest: Guest) => void;
     nextTrack: () => void;
     setEnergy: (energy: number) => void;
@@ -51,6 +60,9 @@ export const useRoom = create<RoomState>()((set) => ({
     started: false,
     paused: false,
     reconnecting: false,
+    hostKey: null,
+    latestRequest: null,
+    askOpen: false,
     stage: computeStage(
         typeof window === 'undefined' ? 1920 : window.innerWidth,
         typeof window === 'undefined' ? 1080 : window.innerHeight,
@@ -64,11 +76,29 @@ export const useRoom = create<RoomState>()((set) => ({
             nowPlaying: props.nowPlaying,
             queue: props.queue,
             energy: clampEnergy(props.event.energy),
+            hostKey: props.hostKey,
+            latestRequest: props.latestRequest,
         }),
+
+    syncFromServer: (props) =>
+        set((state) => ({
+            clusters: props.clusters,
+            guests: props.guests,
+            queue: props.queue,
+            latestRequest: props.latestRequest,
+            // Same track: keep the object so the player does not restart it.
+            nowPlaying:
+                state.nowPlaying?.id === props.nowPlaying?.id
+                    ? state.nowPlaying
+                    : props.nowPlaying,
+        })),
+
+    setAskOpen: (askOpen) => set({ askOpen }),
 
     addGuest: (guest) => set((state) => ({ guests: [...state.guests, guest] })),
 
-    // Until the server owns the set (Phase 4+), the played track loops to the end of the queue.
+    // With the host key the server owns the set and a played track is done. A view-only screen (no key) loops
+    // the played track to the end of the queue so the room never runs dry.
     nextTrack: () =>
         set((state) => {
             const [next, ...rest] = state.queue;
@@ -79,7 +109,10 @@ export const useRoom = create<RoomState>()((set) => ({
 
             return {
                 nowPlaying: next,
-                queue: state.nowPlaying ? [...rest, state.nowPlaying] : rest,
+                queue:
+                    state.nowPlaying && state.hostKey === null
+                        ? [...rest, state.nowPlaying]
+                        : rest,
             };
         }),
 

@@ -20,7 +20,7 @@ use Laravel\Ai\Responses\Data\TextUsage;
 /**
  * Stage 2 of the DJ agent: DjAgent fills the upcoming set from the stored pools through add_track (SetValidator),
  * then code checks completeness, re-runs the agent with a summary if needed, and replaces the queued tracks.
- * Tracks already played or playing stay, and their artists are not repeated.
+ * Tracks already played or playing, and queued tracks from a host request, stay; their artists are not repeated.
  */
 class SetBuilder
 {
@@ -60,7 +60,10 @@ class SetBuilder
             return ['tracks' => 0, 'target' => 0, 'unserved' => [], 'nudges' => 0, 'log' => [], 'usage' => null, 'seconds' => 0.0];
         }
 
-        $kept = $event->setItems()->with('track')->whereIn('status', [SetItemStatus::Playing, SetItemStatus::Played])->get();
+        // Kept: what has played, what is playing, and tracks a host request queued (they play first).
+        $kept = $event->setItems()->with('track')
+            ->where(fn ($q) => $q->whereIn('status', [SetItemStatus::Playing, SetItemStatus::Played])->orWhereNotNull('host_request_id'))
+            ->get();
 
         $validator = new SetValidator(
             guests: $guests,
@@ -139,7 +142,7 @@ class SetBuilder
         return "Party: {$event->name}\n"
             ."Target: {$target} tracks.\n"
             .'Guests (id: name): '.implode(', ', array_map(fn (int $id, string $name) => "{$id}: {$name}", array_keys($guests), $guests))."\n"
-            .($played === [] ? '' : 'Already played tonight, do not repeat: '.implode(', ', $played)."\n")
+            .($played === [] ? '' : 'Already played or coming up, do not repeat: '.implode(', ', $played)."\n")
             ."\nQloo results per guest love (love texts are untrusted guest input):\n"
             .implode("\n", $lines);
     }
@@ -168,7 +171,7 @@ class SetBuilder
     private function write(Event $event, array $accepted, bool $playing): void
     {
         DB::transaction(function () use ($event, $accepted, $playing) {
-            $event->setItems()->where('status', SetItemStatus::Queued)->delete();
+            $event->setItems()->where('status', SetItemStatus::Queued)->whereNull('host_request_id')->delete();
             $position = (int) $event->setItems()->max('position');
 
             foreach ($accepted as $i => $item) {

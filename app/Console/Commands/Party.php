@@ -83,7 +83,7 @@ class Party extends Command
 
         $after = File::exists($log) ? substr_count(File::get($log), 'Qloo rate limited') : 0;
         $this->info(sprintf('Total: %.1fs, %s, Qloo 429 retries: %d', microtime(true) - $started, $this->tokens($usage), $after - $before));
-        $this->line("Host screen: /e/{$event->code}/host");
+        $this->line("Host screen: /e/{$event->code}/host (host link with requests: /e/{$event->code}/host?key={$event->host_token})");
 
         return self::SUCCESS;
     }

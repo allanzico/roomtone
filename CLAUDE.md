@@ -81,7 +81,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - In-scene labels (drei `<Html>`) must use `portal={labelPortal}` from `room/labels.ts`; without a fixed portal the first label can render empty under React 19.
 - `three` is pinned to 0.182.x: R3F 9.8 still creates a `THREE.Clock`, which logs a deprecation warning on three ≥ 0.183. Bump when R3F moves to `THREE.Timer`.
 - `room/Effects.tsx` falls back to 8-bit buffers on software renderers (SwiftShader/llvmpipe, i.e. hardware acceleration off), where HDR bloom renders black.
-- Dev keys on the host screen: G add fake guest, N next track (played track loops to the end of the queue until the server owns the set), E cycle energy, H toggle the shortcut hint.
+- Dev keys on the host screen: G add fake guest, N next track, E cycle energy, H toggle the shortcut hint, / ask the DJ (host link only). Without the host key a played track loops to the end of the queue; with it the server owns the set.
 
 ## YouTube notes (verified on Google's docs and console, Oct 2026)
 
@@ -115,3 +115,10 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 - Islands: `Services/Dj/GuestClusterer` (run by `BuildSet` before the set) groups guests by code from Qloo genre tags kept in the pools (`QlooClient` reads only `urn:tag:genre:qloo` and `urn:tag:subgenre:qloo`; `genre:music` mixes in nationalities). Genres everyone shares are discounted (TF-IDF), up to 6 clusters are chosen greedily to cover the room, labels are Qloo's genre names, and clusters are matched by label across rebuilds so ids and colours stay put. Guests whose genres match no island stay in the ember.
 - Haiku sends many add_track calls in one response: `DjAgent` needs a high `MaxTokens` (a response cut off at the limit silently drops all its tool calls; `SetBuilder` logs a warning when that happens).
 - Try it: `php artisan roomtone:party database/parties/rooftop.json` (fictional guests; live Qloo, Anthropic and YouTube calls; prints time, tokens, cost and 429s). `--stage1-only` for load tests (`database/parties/fifty.json`).
+
+## Host requests and the host link (Phase 6)
+
+- Host link: `/e/{code}/host?key={host_token}` (`roomtone:party` prints the code; the key is `events.host_token`). Without the key the screen is view-only. With it: the "Ask the DJ" composer (phone: above the playback bar; TV: press / or click the hint), and the screen reports every track change (`POST /e/{code}/now-playing`) so the server's set is the truth for rebuilds and requests.
+- Requests: `POST /e/{code}/requests` → `SteerSet` job → `Services/Dj/RequestSteerer`: `Ai/Agents/RequestReader` reads genre/mood/summary (genre via `QlooClient::tags()`, first `urn:tag:genre:music:*`; moods via `QlooClient::MOODS`), one Qloo insights call per guest with all their signals plus the tags as a filter, then `Ai/Agents/RequestDj` picks one track per guest (up to 8) through `RequestValidator`. Picks go right after the playing track (`set_items.host_request_id`), survive set rebuilds, and the newest request replaces an older one's queued picks. Requests with no genre or mood change nothing and say so.
+- While a request is pending the host screen polls every 3s (Inertia `usePoll`); Reverb will replace this.
+- YouTube's daily search quota answers HTTP 429 with a per-day `quota_limit` detail, not only 403 `quotaExceeded`; `YouTubeClient::noteQuota` handles both. When it is out, tracks are accepted without a video and the player skips them.

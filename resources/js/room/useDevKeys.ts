@@ -27,6 +27,13 @@ export function useDevKeys(onToggleHint: () => void): void {
 
             const room = useRoom.getState();
 
+            if (event.key === '/' && room.hostKey !== null) {
+                event.preventDefault();
+                room.setAskOpen(true);
+
+                return;
+            }
+
             switch (event.key.toLowerCase()) {
                 case 'g':
                     room.addGuest(makeFakeGuest(room.clusters));
