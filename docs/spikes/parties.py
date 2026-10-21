@@ -1,0 +1,27 @@
+"""Fictional guests for the spikes. Lisbon Rooftop plus 12 more, 20 in total (60 loves)."""
+PARTIES = {
+    "big": (
+{'Maria': ['Ozark', 'pastéis de nata', 'Burna Boy'],
+         'Tomás': ['Alfama', 'grilled sardines', 'Amália Rodrigues'],
+         'Aisha': ['jollof rice', 'Lagos', 'Wizkid'],
+         'Jake': ['Stranger Things', 'Whitney Houston', 'Coney Island'],
+         'Priya': ['Peckham', 'Top Boy', 'Craig David'],
+         'Lena': ['Dark', 'Berlin', 'Kate Bush'],
+         'Kofi': ['suya', 'Insecure', 'Tems'],
+         'Inês': ['Sintra', 'The White Lotus', 'Mariza'],
+         'Sam': ['Fleabag', 'Sunday roast', 'Wes Anderson films'],
+         'Noor': ['Succession', 'Tokyo', 'ramen'],
+         'Dev': ['Breaking Bad', 'hiking', 'craft beer'],
+         'Ruth': ['The Great British Bake Off', 'Studio Ghibli', 'gardening'],
+         'Leo': ['Formula 1', 'Dune', 'tacos al pastor'],
+         'Chioma': ['Love Is Blind', 'Abuja', 'Asake'],
+         'Mateo': ['La Casa de Papel', 'Medellín', 'Bad Bunny'],
+         'Hana': ['Squid Game', 'Seoul', 'BTS'],
+         'Omar': ['Ramy', 'Cairo', 'Amr Diab'],
+         'Zoe': ['Euphoria', 'Brooklyn', 'SZA'],
+         'Finn': ['Peaky Blinders', 'Glasgow', 'Arctic Monkeys'],
+         'Ayesha': ['Bridgerton', 'Mumbai', 'Arijit Singh']},
+        'Lisbon Rooftop (rooftop birthday), 20 guests. Energy plan: 20:00 arrivals=3, 21:30 after dinner=4, 23:00 peak=5, 00:30 wind down=2. Now it is 21:30: build the next 24 tracks at about energy 4 (3-5 allowed).',
+        24,
+    ),
+}

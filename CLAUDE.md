@@ -84,3 +84,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - Steer with `QlooClient::MOODS` (`style:qloo:calm` / `energetic`) and genre tags from `tags()`. Do not use `genre:music:{upbeat,danceable,chill}`.
 - Artists carry `notable_songs` and tags but no BPM, energy or per-result reason. Those come from the agent.
 - Insights calls take about 3.5–4.5s cold, so call them from queue jobs, not requests.
+
+## DJ agent design (validated by spikes, Oct 2026)
+
+Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stage 1 per guest (queued job: one Haiku pick call per guest, per-love single-signal Qloo calls, stored pools), stage 2 picks only from stored pools through a validating `add_track` tool, code writes every "because X loves Y" reason, host requests use request pools, global cap of 3 concurrent Qloo calls with 429 retry. Haiku is the model for the demo. Reference scripts: `docs/spikes/` (their outputs hold Qloo data and must stay out of the repo).
