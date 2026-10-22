@@ -141,7 +141,7 @@ export function PlanCurve({ draft, onChange, compact = false }: Props) {
     const add = (event: MouseEvent<SVGSVGElement>) => {
         if (
             draft.points.length >= MAX_POINTS ||
-            (event.target as Element).closest('.rt-curve-handle')
+            (event.target as Element).closest('.rt-curve-handle, .rt-curve-x')
         ) {
             return;
         }
@@ -341,23 +341,36 @@ export function PlanCurve({ draft, onChange, compact = false }: Props) {
                         </g>
                     );
                 })}
-            </svg>
-            <p className="rt-curve-tools">
-                {chosen !== null && draft.points.length > MIN_POINTS ? (
-                    <button
-                        type="button"
-                        className="rt-curve-remove"
+
+                {/* The selected point's remove button: below and beside it, clear of its label (above at the lowest
+                    energy; left of the last point, so it stays inside). */}
+                {chosen !== null && draft.points.length > MIN_POINTS && (
+                    <g
+                        className="rt-curve-x"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Remove ${chosenName.toLowerCase()}`}
+                        transform={`translate(${xy[chosen][0] + (chosen === last ? -24 : 24)} ${xy[chosen][1] + (draft.points[chosen].energy > 1 ? 22 : -22)})`}
                         onClick={() => remove(chosen)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                remove(chosen);
+                            }
+                        }}
                     >
-                        Remove {chosenName.toLowerCase()}
-                    </button>
-                ) : (
-                    <span className="rt-curve-hint">
-                        {draft.points.length < MAX_POINTS
-                            ? 'Drag a point to change it. Tap between two points to add one.'
-                            : 'Drag a point to change it, or select one to remove it.'}
-                    </span>
+                        <circle r="16" className="rt-curve-x-hit" />
+                        <circle r="10" className="rt-curve-x-bg" />
+                        <path d="M -3.5 -3.5 L 3.5 3.5 M 3.5 -3.5 L -3.5 3.5" />
+                    </g>
                 )}
+            </svg>
+            <p className="rt-curve-tools rt-curve-hint" aria-live="polite">
+                {chosen !== null && draft.points.length > MIN_POINTS
+                    ? `Tap × to remove ${chosenName.toLowerCase()}, or drag it.`
+                    : draft.points.length < MAX_POINTS
+                      ? 'Drag a point to change it, tap it to remove it, or tap between two points to add one.'
+                      : 'Drag a point to change it, or tap it to remove it.'}
             </p>
         </div>
     );

@@ -96,9 +96,16 @@ export default function Setup() {
             composer.current?.focus({ preventScroll: true });
         }
 
-        // To the very bottom: the space kept clear under the pinned composer is part of the page.
+        // Towards the bottom (the plan and its button), but never past the DJ's newest line: in a short window
+        // the reply stays readable at the top and the button is one scroll away.
+        const bottom =
+            document.documentElement.scrollHeight - window.innerHeight;
+        const lines = document.querySelectorAll('.rt-dj-line');
+        const newest = lines[lines.length - 1]?.getBoundingClientRect();
         window.scrollTo({
-            top: document.documentElement.scrollHeight,
+            top: newest
+                ? Math.min(bottom, window.scrollY + newest.top - 32)
+                : bottom,
             behavior: 'smooth',
         });
     }, [thinking, messages.length, ready]);

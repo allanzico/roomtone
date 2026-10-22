@@ -42,7 +42,8 @@ class SetupDj implements Agent, HasStructuredOutput
           asked, say so kindly in a few words.
         - choices: 2 to 4 replies the host can tap instead of typing, each one to four words, in the host's voice.
           After a question they answer it ("About an hour", "2 to 3 hours", "Longer"). After a plan they adjust it
-          ("Calmer", "More energy", "No peak", "Start later"). Never offer to open the room: a button does that.
+          ("Calmer", "More energy", "No peak", "Start later"). Never offer to open the room or a reply that only
+          agrees ("Looks good", "Perfect"): a button does that.
         - occasion: party, birthday, drive, road trip, dinner, cooking, workout or other.
         - name: a short name for the room, like "Maria's 30th" or "Drive to Groningen". Null until you know.
         - timeline: "trip" for drives and road trips (times are minutes from leaving), otherwise "clock".

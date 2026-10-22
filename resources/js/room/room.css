@@ -1160,8 +1160,16 @@
 
 /* ---------- Setup: talk to the DJ ---------- */
 
+/* Setup is a page that grows with the chat, not the host screen's fixed frame: it scrolls, the stars stay put. */
 .rt-setup {
-    min-height: 100vh;
+    position: relative;
+    inset: auto;
+    min-height: 100dvh;
+    overflow: visible;
+}
+
+.rt-setup .rt-space {
+    position: fixed;
 }
 
 .rt-wordmark {
@@ -1409,20 +1417,31 @@
     font-size: 14px;
 }
 
-.rt-curve-remove {
-    min-height: var(--rt-tap);
-    padding: 0;
-    border: 0;
-    border-bottom: 1px dashed var(--rt-line);
-    background: transparent;
-    color: var(--rt-text-2);
-    font: inherit;
-    font-size: 15px;
+.rt-curve-x {
     cursor: pointer;
+    outline: none;
 }
 
-.rt-curve-remove:hover {
-    color: var(--rt-ink);
+.rt-curve-x-hit {
+    fill: transparent;
+}
+
+.rt-curve-x-bg {
+    fill: rgb(237 237 242 / 0.14);
+    stroke: rgb(237 237 242 / 0.4);
+    stroke-width: 1;
+}
+
+.rt-curve-x path {
+    stroke: var(--rt-ink);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+}
+
+.rt-curve-x:hover .rt-curve-x-bg,
+.rt-curve-x:focus-visible .rt-curve-x-bg {
+    fill: rgb(237 237 242 / 0.28);
+    stroke: var(--rt-ink);
 }
 
 .rt-facts {
