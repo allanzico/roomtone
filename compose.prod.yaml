@@ -1,0 +1,85 @@
+# Roomtone in production: roomtone.stackyard.io behind Cloudflare (SSL mode "Full").
+#   ./deploy.sh        (or: docker compose -f compose.prod.yaml --env-file .env.production up -d --build --wait)
+# Settings and secrets: .env.production (copy .env.production.example). See docs/DEPLOY.md.
+name: roomtone
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+x-roomtone: &roomtone
+  <<: *logging
+  image: roomtone:${APP_VERSION:-latest}
+  env_file: .env.production
+  environment: &environment
+    APP_ENV: production
+    APP_DEBUG: "false"
+    DB_CONNECTION: sqlite
+    DB_DATABASE: /var/roomtone/database.sqlite
+    LOG_CHANNEL: stderr
+    INERTIA_SSR_ENABLED: "false"
+    SERVER_NAME: ${SERVER_NAME:?set SERVER_NAME in .env.production}
+    ROOMTONE_TLS: ${ROOMTONE_TLS:-internal}
+    # The app publishes events to Reverb inside the Docker network; browsers use the public host (built in).
+    REVERB_HOST: reverb
+    REVERB_PORT: "8080"
+    REVERB_SCHEME: http
+  volumes:
+    - database:/var/roomtone
+    - storage:/app/storage
+  restart: unless-stopped
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  healthcheck:
+    disable: true
+
+services:
+  web:
+    <<: *roomtone
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:?set REVERB_APP_KEY in .env.production}
+        VITE_REVERB_HOST: ${REVERB_PUBLIC_HOST:?set REVERB_PUBLIC_HOST in .env.production}
+        VITE_REVERB_PORT: ${REVERB_PUBLIC_PORT:-443}
+        VITE_REVERB_SCHEME: ${REVERB_PUBLIC_SCHEME:-https}
+    # Migrations run once, here, before the web server starts; the other services wait until it is healthy.
+    command: ["sh", "-c", "php artisan migrate --force && exec frankenphp run --config /etc/frankenphp/Caddyfile"]
+    # The frankenphp binary carries this file capability, and the kernel refuses to run it while the
+    # capability is dropped. It binds only 8080/8443, so it is never used.
+    cap_add: [NET_BIND_SERVICE]
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - database:/var/roomtone
+      - storage:/app/storage
+      # Only for ROOMTONE_TLS=origin: the Cloudflare Origin Certificate (origin.pem, origin.key).
+      - ${ROOMTONE_CERTS_DIR:-./docker/certs}:/certs:ro
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8081/up') === false ? 1 : 0);"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  queue:
+    <<: *roomtone
+    command: ["php", "artisan", "queue:work", "--sleep=1", "--tries=3", "--max-time=3600"]
+    depends_on: { web: { condition: service_healthy } }
+
+  reverb:
+    <<: *roomtone
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    depends_on: { web: { condition: service_healthy } }
+
+  scheduler:
+    <<: *roomtone
+    command: ["php", "artisan", "schedule:work"]
+    depends_on: { web: { condition: service_healthy } }
+
+volumes:
+  database:
+  storage:

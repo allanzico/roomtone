@@ -1,0 +1,2 @@
+# Cloudflare Origin Certificate (SSL mode "Full (strict)"): mount them at /certs.
+tls /certs/origin.pem /certs/origin.key

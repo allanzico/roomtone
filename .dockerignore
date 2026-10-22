@@ -4,7 +4,6 @@
 .claude
 .env
 .env.*
-!.env.production.example
 node_modules
 vendor
 public/build
@@ -24,3 +23,8 @@ resources/js/wayfinder
 tests
 .phpunit.cache
 docs/spikes
+docker/certs
+compose.*.yaml
+deploy.sh
+scripts
+Makefile
