@@ -1,12 +1,7 @@
 import { useEffect } from 'react';
+import { xsrfToken } from '@/lib/xsrf';
 import { nowPlaying } from '@/routes/events';
 import { useRoom } from './store';
-
-function xsrfToken(): string {
-    const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/);
-
-    return match ? decodeURIComponent(match[1]) : '';
-}
 
 /**
  * With the host key, tell the server each time the room moves to another track, so set rebuilds and host

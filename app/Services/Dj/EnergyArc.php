@@ -89,30 +89,60 @@ class EnergyArc
     }
 
     /**
-     * Plan points as absolute times, in order. Clock times after midnight count as the next day.
+     * The plan's points with the timeline they are on. Reads the setup chat's shape
+     * ({timeline: clock|trip, points, tz?, minutes?}) and the older list of clock points.
+     *
+     * @return array{timeline: 'clock'|'trip', points: list<array<string, mixed>>, tz: string}
+     */
+    public static function plan(Event $event): array
+    {
+        $plan = $event->energy_plan ?? [];
+        $old = array_is_list($plan);
+        $tz = ! $old && is_string($plan['tz'] ?? null) && in_array($plan['tz'], timezone_identifiers_list(), true)
+            ? $plan['tz'] : (string) config('app.timezone');
+
+        return [
+            'timeline' => ! $old && ($plan['timeline'] ?? null) === 'trip' ? 'trip' : 'clock',
+            'points' => array_values(array_filter($old ? $plan : (array) ($plan['points'] ?? []), 'is_array')),
+            'tz' => $tz,
+        ];
+    }
+
+    /**
+     * Plan points as absolute times, in order. Clock times are in the host's timezone, and times after midnight
+     * count as the next day; trip times are minutes from when the room opened.
      *
      * @return list<array{0: CarbonImmutable, 1: int}>
      */
     private static function points(Event $event): array
     {
-        if ($event->energy_plan === null || $event->energy_plan === []) {
-            $start = CarbonImmutable::instance($event->created_at ?? now());
+        $start = CarbonImmutable::instance($event->created_at ?? now());
+        $plan = self::plan($event);
 
+        if ($plan['points'] === []) {
             return array_map(fn (array $p) => [$start->addMinutes($p[0]), $p[1]], self::DEFAULT_PLAN);
         }
 
         $points = [];
         $previous = null;
 
-        foreach ($event->energy_plan as $point) {
-            $time = CarbonImmutable::parse($point['at']);
+        foreach ($plan['points'] as $point) {
+            $energy = max(1, min(5, (int) ($point['energy'] ?? 3)));
+
+            if ($plan['timeline'] === 'trip') {
+                $points[] = [$start->addMinutes((int) ($point['at'] ?? 0)), $energy];
+
+                continue;
+            }
+
+            $time = CarbonImmutable::parse((string) ($point['at'] ?? '00:00'), $plan['tz']);
 
             // "00:30" after "23:00" is the next night, not this morning.
             while ($previous !== null && $time->lessThan($previous)) {
                 $time = $time->addDay();
             }
 
-            $points[] = [$time, max(1, min(5, (int) $point['energy']))];
+            $points[] = [$time, $energy];
             $previous = $time;
         }
 

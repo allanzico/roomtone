@@ -22,6 +22,7 @@ void createInertiaApp({
             case name === 'HostRoom':
             case name === 'Join':
             case name === 'Guest':
+            case name === 'Setup':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

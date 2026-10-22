@@ -1,7 +1,8 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { Starfield } from '@/room/Starfield';
 import { store as tryDemo } from '@/routes/demo';
+import { setup } from '@/routes';
 import '../../css/tokens.css';
 import '@/room/room.css';
 
@@ -41,6 +42,9 @@ export default function Welcome() {
                                 ? 'Opening the room…'
                                 : 'Try a demo party'}
                         </button>
+                        <Link href={setup.url()} className="rt-landing-link">
+                            Or start your own room
+                        </Link>
                         <p className="rt-start-note">
                             Your own copy of a 16-guest rooftop party. Ask the
                             DJ for &ldquo;more Afrobeats&rdquo; or to

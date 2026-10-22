@@ -137,3 +137,11 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 - Realtime is Laravel Reverb (`php artisan dev` starts it on :8080; deploy must run `php artisan reverb:start` and proxy websockets). Public channel `room.{CODE}`: `GuestJoined` (the guest, so the point lands at once) and `RoomUpdated` (empty: screens reload their props) after stage 1, set builds and host requests. Tests broadcast to the `null` driver.
 - Reverb needs `guzzlehttp/psr7` ^2, so Guzzle is 7.x (not 8). `@babel/core` is pinned as a dev dependency: adding the Echo packages made npm drop it as an auto-installed peer and broke the Vite build.
 - `php artisan install:broadcasting` needs a TTY for its npm step and edits files even with `--pretend`; it was finished by hand (see git history).
+
+## Setup chat (Phase 7b)
+
+- `/new` (linked from the welcome page): the host talks to the DJ. Each turn is `POST /new/turn` (JSON, stateless: the page sends the conversation and the draft) → `Ai/Agents/SetupDj` (Haiku, structured output, no tools) → `Services/Dj/SetupDraft` checks every proposal (occasions from a fixed list, times snapped to 15 minutes, energy 1–5, at most 6 points, short labels and name). A failed call answers "I lost the thread. Say that again?" with the draft kept.
+- The plan is the design's shape: `{timeline: clock|trip, points, tz, minutes?}`. Clock times are in the host's timezone (the browser's, stored as `tz`); trip times are minutes from when the room opens. `EnergyArc::plan()` reads it and the older list shape. "Open the room" / "Start the drive" (`POST /new`) creates the event and goes to its host link.
+- `resources/js/setup/`: `PlanCurve` (SVG; drag or arrow keys, 15-minute and 1–5 steps, never past neighbours; `compact` on phones so it stays tall enough to drag; axis labels drop when they would collide), `time.ts` (clock/trip minute helpers). "I heard" facts (occasion, name, time range or trip length) edit in place; the DJ's "Got it" line is written by code.
+- Left out on purpose: "Clean versions only" and "Anything to avoid?" (nothing can enforce them; the DJ says so if asked) and the "Speaker + TV" fact.
+- Setup is open to anyone: turns are limited to 30 an hour and rooms to 10 an hour per IP.

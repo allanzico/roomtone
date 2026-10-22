@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Dj\EnergyArc;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,7 +16,7 @@ use Illuminate\Support\Carbon;
  * @property string $code
  * @property string $name
  * @property string|null $occasion
- * @property list<array{at: string, energy: int, label: string}>|null $energy_plan
+ * @property array<mixed>|null $energy_plan Setup's {timeline, points, tz?, minutes?}, or an older list of clock points (see EnergyArc::plan)
  * @property string $host_token
  * @property bool $demo A visitor's copy of the demo party
  * @property Carbon|null $created_at
@@ -82,7 +83,7 @@ class Event extends Model
      */
     public function startingEnergy(): int
     {
-        return $this->energy_plan[0]['energy'] ?? 3;
+        return (int) (EnergyArc::plan($this)['points'][0]['energy'] ?? 3);
     }
 
     /**
