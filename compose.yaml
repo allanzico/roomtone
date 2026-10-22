@@ -1,6 +1,6 @@
 # Roomtone in Docker on this machine: http://localhost (one container, as on Render).
-#   cp .env.docker.example .env.docker   (set APP_KEY)
 #   docker compose up -d --build
+# Reads the same .env as `composer run dev`; the values below are the ones that differ inside Docker.
 services:
   app:
     build:
@@ -9,7 +9,7 @@ services:
       args:
         REVERB_APP_KEY: local-key
     image: roomtone:local
-    env_file: .env.docker
+    env_file: .env
     environment:
       APP_ENV: local
       APP_URL: http://localhost

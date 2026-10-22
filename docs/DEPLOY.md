@@ -7,12 +7,11 @@ It is one container because SQLite sits on one disk, and on Render a disk belong
 ## Locally
 
 ```bash
-cp .env.docker.example .env.docker      # set APP_KEY; the API keys are optional
 docker compose up -d --build
 docker compose exec app php artisan db:seed --class=DemoPartySeeder --force   # a fake demo party, no API calls
 ```
 
-Open http://localhost. `docker compose logs -f`, `docker compose exec app sh`, `docker compose down` (keeps the data; add `-v` to delete it).
+It reads the same `.env` as `composer run dev` (see the README); `compose.yaml` overrides what differs inside Docker (the URL, database path, Reverb address, logs and SSR). The `.env` file never goes into the image. Open http://localhost. `docker compose logs -f`, `docker compose exec app sh`, `docker compose down` (keeps the data; add `-v` to delete it).
 
 Plain `composer run dev` (no Docker) is still the everyday setup.
 
