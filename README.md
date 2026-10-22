@@ -45,6 +45,7 @@ This starts everything: the app on http://localhost:8000, the queue worker (gues
 ### 4. Open it
 
 - http://localhost:8000: the welcome page. **Try a demo party** copies the demo into a new party and opens its host screen.
+- http://localhost:8000/new: set up your own room by talking to the DJ. It creates the event and opens its host screen.
 - http://localhost:8000/e/DEMO/host: the host screen, view-only. Add `?key=` and the event's `host_token` (from the `events` table) to get the **Ask the DJ** box.
 - http://localhost:8000/e/DEMO: the guest join page. The QR on the host screen links here. To join from a real phone, run the app on your machine's network address and set `APP_URL` to match.
 
