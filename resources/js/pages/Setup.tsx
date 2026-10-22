@@ -75,6 +75,8 @@ export default function Setup() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [draft, setDraft] = useState<Draft>(EMPTY);
     const [ready, setReady] = useState(false);
+    // Taps for the DJ's latest line: answers to its question, or tweaks to its plan.
+    const [choices, setChoices] = useState<string[]>([]);
     const [thinking, setThinking] = useState(false);
     const [text, setText] = useState('');
     const [opening, setOpening] = useState(false);
@@ -117,6 +119,7 @@ export default function Setup() {
             { from: 'host', text: message },
         ];
         setMessages((all) => [...all, { from: 'host', text: message }]);
+        setChoices([]);
         setText('');
         setThinking(true);
 
@@ -137,6 +140,7 @@ export default function Setup() {
             });
             const body = (await response.json()) as {
                 reply?: string;
+                choices?: string[];
                 draft?: Draft;
                 ready?: boolean;
             };
@@ -147,6 +151,7 @@ export default function Setup() {
 
             setDraft(body.draft);
             setReady(body.ready === true);
+            setChoices(body.choices ?? []);
             say(body.reply ?? LOST);
         } catch {
             // The host's message stays; nothing is lost.
@@ -265,6 +270,26 @@ export default function Setup() {
                                 </li>
                             )}
                         </ol>
+                    )}
+
+                    {!firstOpen && !thinking && choices.length > 0 && (
+                        <ul className="rt-replies" aria-label="Quick replies">
+                            {choices.map((choice) => (
+                                <li key={choice}>
+                                    <button
+                                        type="button"
+                                        className="rt-start-chip rt-reply"
+                                        onClick={() => void send(choice)}
+                                    >
+                                        <span
+                                            className="rt-dot"
+                                            aria-hidden="true"
+                                        />
+                                        {choice}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
                     )}
 
                     {ready && !thinking && (

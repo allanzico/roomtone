@@ -16,6 +16,7 @@ function partyPlan(array $overrides = []): array
 {
     return [
         'reply' => 'Easy through dinner, peak around 11, soft landing by half past midnight. Drag the curve if I got it wrong.',
+        'choices' => ['Calmer', 'More energy', 'No peak'],
         'occasion' => 'birthday',
         'name' => "Maria's 30th",
         'timeline' => 'clock',
@@ -46,6 +47,7 @@ test('a turn returns the DJ\'s reply and the plan it heard', function () {
     ])
         ->assertOk()
         ->assertJsonPath('reply', partyPlan()['reply'])
+        ->assertJsonPath('choices', ['Calmer', 'More energy', 'No peak'])
         ->assertJsonPath('ready', true)
         ->assertJsonPath('draft.occasion', 'birthday')
         ->assertJsonPath('draft.name', "Maria's 30th")
@@ -75,6 +77,17 @@ test('whatever the model proposes is checked: times snap, energy stays 1-5, junk
             ['at' => '20:00', 'energy' => 1, 'label' => 'Arrivals'],
             ['at' => '23:45', 'energy' => 5, 'label' => str_repeat('x', 24)],
         ]);
+});
+
+test('quick replies are short, distinct and at most four', function () {
+    SetupDj::fake([partyPlan(['choices' => [
+        ' About an hour ', 'about an hour', '', 42, 'Two to three hours', 'Longer',
+        'A very long answer that keeps going well past the limit', 'Fifth',
+    ]])]);
+
+    $this->postJson('/new/turn', ['messages' => [['from' => 'host', 'text' => 'A long drive']]])
+        ->assertOk()
+        ->assertJsonPath('choices', ['About an hour', 'Two to three hours', 'Longer', 'A very long answer that keeps go']);
 });
 
 test('a trip plan is in minutes from leaving, sorted, with its length', function () {

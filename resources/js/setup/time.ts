@@ -73,5 +73,9 @@ export function tripLabel(minutes: number, total: number): string {
         return 'Arrive';
     }
 
-    return `${Math.round(minutes / 60)} h`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+
+    // "1 h", "1 h 30", "45 min": points 15 minutes apart never share a label.
+    return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m}`;
 }

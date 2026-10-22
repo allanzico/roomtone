@@ -17,6 +17,8 @@ class SetupDraft
 
     private const MAX_POINTS = 6;
 
+    private const MAX_CHOICES = 4;
+
     /**
      * @param  array<mixed>  $input
      * @return Draft
@@ -66,6 +68,25 @@ class SetupDraft
     public static function ready(array $draft): bool
     {
         return count($draft['points']) >= 2;
+    }
+
+    /**
+     * The quick replies the DJ offers: up to four short, distinct lines.
+     *
+     * @return list<string>
+     */
+    public static function choices(mixed $choices): array
+    {
+        $kept = [];
+        foreach (is_array($choices) ? $choices : [] as $choice) {
+            $text = is_string($choice) ? Str::limit(trim($choice), 32, '') : '';
+
+            if ($text !== '' && ! in_array(Str::lower($text), array_map(Str::lower(...), $kept), true)) {
+                $kept[] = $text;
+            }
+        }
+
+        return array_slice($kept, 0, self::MAX_CHOICES);
     }
 
     private static function clockAt(mixed $at): ?string

@@ -52,7 +52,7 @@ class SetupController extends Controller
         try {
             $answer = SetupDj::make()->prompt($prompt);
         } catch (Throwable) {
-            return response()->json(['reply' => self::LOST, 'draft' => $draft, 'ready' => SetupDraft::ready($draft)], 502);
+            return response()->json(['reply' => self::LOST, 'choices' => [], 'draft' => $draft, 'ready' => SetupDraft::ready($draft)], 502);
         }
 
         $next = SetupDraft::from($answer->toArray());
@@ -60,6 +60,7 @@ class SetupController extends Controller
 
         return response()->json([
             'reply' => $reply === '' ? self::LOST : $reply,
+            'choices' => SetupDraft::choices($answer['choices'] ?? null),
             'draft' => $next,
             'ready' => SetupDraft::ready($next),
         ]);

@@ -1261,6 +1261,25 @@
     height: 10px;
 }
 
+/* Quick replies under the DJ's latest line: smaller than the first-open starts, dots in the DJ's colour. */
+.rt-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 28px;
+    list-style: none;
+}
+
+.rt-reply {
+    --rt-dot: var(--rt-dj);
+    color: var(--rt-text-2);
+    font-size: 18px;
+}
+
+.rt-reply .rt-dot {
+    width: 8px;
+    height: 8px;
+}
+
 .rt-setup-dot {
     flex: none;
     width: 16px;
@@ -1361,6 +1380,49 @@
 
 .rt-curve-handle[data-peak='true'] .rt-curve-axis {
     fill: var(--rt-ink);
+}
+
+.rt-curve-handle[data-selected='true'] .rt-curve-halo {
+    stroke: var(--rt-ink);
+    stroke-width: 1;
+}
+
+.rt-curve {
+    cursor: crosshair;
+}
+
+.rt-curve-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 680px;
+}
+
+.rt-curve-tools {
+    display: flex;
+    align-items: center;
+    min-height: var(--rt-tap);
+}
+
+.rt-curve-hint {
+    color: var(--rt-text-4);
+    font-size: 14px;
+}
+
+.rt-curve-remove {
+    min-height: var(--rt-tap);
+    padding: 0;
+    border: 0;
+    border-bottom: 1px dashed var(--rt-line);
+    background: transparent;
+    color: var(--rt-text-2);
+    font: inherit;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.rt-curve-remove:hover {
+    color: var(--rt-ink);
 }
 
 .rt-facts {
@@ -1475,6 +1537,10 @@
 
     .rt-start-chip {
         font-size: 16px;
+    }
+
+    .rt-replies {
+        gap: 0 20px;
     }
 
     .rt-dj-line {
