@@ -145,3 +145,20 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 - `resources/js/setup/`: `PlanCurve` (SVG; drag or arrow keys, 15-minute and 1–5 steps, never past neighbours; `compact` on phones so it stays tall enough to drag; axis labels drop when they would collide), `time.ts` (clock/trip minute helpers). "I heard" facts (occasion, name, time range or trip length) edit in place; the DJ's "Got it" line is written by code.
 - Left out on purpose: "Clean versions only" and "Anything to avoid?" (nothing can enforce them; the DJ says so if asked) and the "Speaker + TV" fact.
 - Setup is open to anyone: turns are limited to 30 an hour and rooms to 10 an hour per IP.
+
+## Deploy (Phase 3)
+
+- `Dockerfile` builds one FrankenPHP image (PHP 8.4 + Caddy); `compose.yaml` runs it as `web` (HTTPS, migrations on start, proxies `/app/*` and `/apps/*` to Reverb), `queue`, `reverb` and `scheduler`, sharing SQLite at `/var/roomtone/database.sqlite` on the `roomtone` volume. `./deploy.sh` pulls, builds, restarts and waits for the health check (`:8081/up`, inside the network only). Guide: `docs/DEPLOY.md`.
+- Config: `.env.production` (from `.env.production.example`), never committed. `VITE_REVERB_*` are build args baked into the JS, so changing `REVERB_APP_KEY` or `SERVER_NAME` needs a rebuild. Containers publish to Reverb at `reverb:8080` over plain HTTP.
+- No Node at runtime: Inertia SSR is off in Docker (`INERTIA_SSR_ENABLED=false`). `php artisan optimize` runs in the entrypoint, not at build time, because config caching reads the environment.
+- `roomtone:backup` (daily 03:30) writes `VACUUM INTO` copies to `backups/` next to the database and keeps 7.
+- `roomtone:taste {file}` is a standalone taste test (Qloo search → Claude picks or bridges → Qloo artists → Claude picks songs) that calls the Messages API directly with the `config/ai.php` key and model. Its people file and report live in `storage/app/taste-test/` (git-ignored: Qloo data).
+
+## Deploy (Phase 3, Docker)
+
+- `Dockerfile` (one image, FrankenPHP = PHP + Caddy; the build stage has PHP and Node because the Vite build runs Wayfinder's `php artisan`; Reverb's public host and key are baked into the JS via `VITE_REVERB_*` build args), `compose.yaml` (`web` migrates then serves 80/443 and proxies `/app/*` and `/apps/*` to `reverb:8080`; `queue`, `reverb`, `scheduler` wait for web's health check on internal `:8081/up`), `docker/` (Caddyfile, php.ini, entrypoint that caches config at start). Guide: `docs/DEPLOY.md`; `deploy.sh` pulls, builds, starts, waits for health.
+- Secrets live in `.env.production` (git-ignored; template `.env.production.example`). Compose also reads it for build args: always `docker compose --env-file .env.production …`.
+- SQLite is on the `roomtone` volume at `/var/roomtone/database.sqlite` (not `/data`: FrankenPHP keeps Caddy's certificates there). Inside Docker the app publishes to Reverb at `reverb:8080` over HTTP; browsers use `wss://<domain>/app/…`.
+- Inertia SSR is off in Docker (`INERTIA_SSR_ENABLED=false`), on locally. `roomtone:backup` (daily 03:30) writes `VACUUM INTO` copies to `backups/` next to the database and keeps 7; it can't run inside a transaction, so its test uses its own SQLite file instead of RefreshDatabase.
+- Verified locally (Oct 2026): pages over HTTPS, HTTP→HTTPS redirect, a guest join with `GuestJoined` over wss through Caddy, the queue resolving and building the set with two `RoomUpdated`, a demo copy, the schedule, a backup. The browser pane won't open https://localhost (untrusted local CA); test realtime with a raw Pusher-protocol client.
+- Containers run as root (FrankenPHP default). Running as a non-root user is a hardening item.

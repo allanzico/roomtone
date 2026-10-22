@@ -1,0 +1,25 @@
+{
+	frankenphp
+}
+
+(app) {
+	root * /app/public
+	encode zstd br gzip
+
+	# Reverb: browsers connect to wss://<host>/app/<key>; the app publishes events to /apps/<id>/events.
+	@reverb path /app/* /apps/*
+	reverse_proxy @reverb reverb:8080
+
+	php_server
+}
+
+# The public site. SERVER_NAME is the domain (Caddy gets a Let's Encrypt certificate for it), or "localhost" for a
+# local test with Caddy's own local certificate.
+{$SERVER_NAME:localhost} {
+	import app
+}
+
+# Plain HTTP inside the Docker network only (not published): health checks.
+:8081 {
+	import app
+}
