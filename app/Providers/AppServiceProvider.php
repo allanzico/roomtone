@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -24,6 +25,20 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->trustProxies();
+    }
+
+    /**
+     * Behind Cloudflare every request arrives from a Cloudflare address: trust the forwarded headers so rate limits
+     * see the real visitor IP (config app.trusted_proxies: "*", or a comma-separated list).
+     */
+    protected function trustProxies(): void
+    {
+        $proxies = config('app.trusted_proxies');
+
+        if (is_string($proxies) && $proxies !== '') {
+            TrustProxies::at($proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
     }
 
     /**

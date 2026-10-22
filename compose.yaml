@@ -6,7 +6,7 @@ x-roomtone: &roomtone
   image: roomtone:latest
   env_file: .env.production
   environment:
-    SERVER_NAME: ${SERVER_NAME:-localhost}
+    SERVER_NAME: ${SERVER_NAME:-http://localhost}
     DB_CONNECTION: sqlite
     DB_DATABASE: /var/roomtone/database.sqlite
     LOG_CHANNEL: stderr
@@ -29,8 +29,11 @@ services:
     build:
       context: .
       args:
+        # Where browsers reach Reverb: the public host, through Caddy (and Cloudflare in production).
         VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:?set REVERB_APP_KEY in .env.production}
-        VITE_REVERB_HOST: ${SERVER_NAME:-localhost}
+        VITE_REVERB_HOST: ${REVERB_PUBLIC_HOST:-localhost}
+        VITE_REVERB_PORT: ${REVERB_PUBLIC_PORT:-80}
+        VITE_REVERB_SCHEME: ${REVERB_PUBLIC_SCHEME:-http}
     # Migrations run once, here, before the web server starts; the other services wait until it is healthy.
     command: ["sh", "-c", "php artisan migrate --force && exec frankenphp run --config /etc/frankenphp/Caddyfile"]
     ports:

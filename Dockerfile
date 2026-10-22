@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# Roomtone: one image for every service (web, queue, reverb, scheduler). FrankenPHP is PHP with Caddy built in,
-# so the web container also does HTTPS.
+# Roomtone: one image for every service (web, queue, reverb, scheduler). FrankenPHP is PHP with Caddy built in;
+# in production Cloudflare is in front (see docs/DEPLOY.md).
 
 FROM dunglas/frankenphp:1-php8.4 AS base
 RUN install-php-extensions pdo_sqlite intl bcmath pcntl zip opcache
@@ -28,8 +28,8 @@ RUN composer dump-autoload --optimize --no-dev --no-interaction
 ARG VITE_APP_NAME=Roomtone
 ARG VITE_REVERB_APP_KEY
 ARG VITE_REVERB_HOST=localhost
-ARG VITE_REVERB_PORT=443
-ARG VITE_REVERB_SCHEME=https
+ARG VITE_REVERB_PORT=80
+ARG VITE_REVERB_SCHEME=http
 RUN npm run build && rm -rf node_modules
 
 # Runtime: no Node, no Composer.

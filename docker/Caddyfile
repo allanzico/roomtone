@@ -1,21 +1,24 @@
 {
 	frankenphp
+	# Never ask Let's Encrypt: in production Cloudflare sits in front (SSL mode "Full") and accepts Caddy's own
+	# certificate; locally the site is plain http://localhost.
+	local_certs
 }
 
 (app) {
 	root * /app/public
 	encode zstd br gzip
 
-	# Reverb: browsers connect to wss://<host>/app/<key>; the app publishes events to /apps/<id>/events.
+	# Reverb: browsers connect to ws(s)://<host>/app/<key>; the app publishes events to /apps/<id>/events.
 	@reverb path /app/* /apps/*
 	reverse_proxy @reverb reverb:8080
 
 	php_server
 }
 
-# The public site. SERVER_NAME is the domain (Caddy gets a Let's Encrypt certificate for it), or "localhost" for a
-# local test with Caddy's own local certificate.
-{$SERVER_NAME:localhost} {
+# SERVER_NAME: the public hostname (roomtone.stackyard.io: HTTPS with Caddy's own certificate, for Cloudflare),
+# or http://localhost for a plain-HTTP local run.
+{$SERVER_NAME:http://localhost} {
 	import app
 }
 

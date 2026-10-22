@@ -4,15 +4,25 @@ Roomtone runs as one Docker image in four services, with SQLite on a Docker volu
 
 | Service | What it runs |
 |---|---|
-| `web` | FrankenPHP (PHP with Caddy built in): the site over HTTPS, and a proxy for Reverb's websockets. Runs the migrations on start. |
+| `web` | FrankenPHP (PHP with Caddy built in): the site, and a proxy for Reverb's websockets. Runs the migrations on start. |
 | `queue` | `php artisan queue:work`: guests' loves, set builds, host requests (Qloo, Anthropic and YouTube calls). |
-| `reverb` | `php artisan reverb:start`: realtime updates, reached by browsers through Caddy at `wss://<your domain>/app/…`. |
+| `reverb` | `php artisan reverb:start`: realtime updates, reached by browsers through Cloudflare and Caddy at `wss://roomtone.stackyard.io/app/…`. |
 | `scheduler` | `php artisan schedule:work`: daily YouTube refresh, demo-copy pruning, and a database backup at 03:30 (the newest 7 are kept in `backups/` on the `roomtone` volume). |
+
+## How traffic reaches it
+
+```
+browser ──HTTPS / wss──▶ Cloudflare (proxied, SSL mode "Full") ──HTTPS──▶ Caddy on the server ──▶ Laravel / Reverb
+```
+
+- Cloudflare handles the public certificate. Caddy never asks Let's Encrypt (`local_certs` in `docker/Caddyfile`): it signs `roomtone.stackyard.io` with its own certificate, which Cloudflare's **Full** mode accepts.
+- Every request reaches Laravel from a Cloudflare address, so `TRUSTED_PROXIES=*` makes Laravel read the visitor's real IP and scheme from Cloudflare's forwarded headers (the rate limits on setup, joins and requests depend on it). Allow ports 80/443 only from Cloudflare's IP ranges if you can, so nobody bypasses Cloudflare and forges those headers.
+- Websockets pass through Cloudflare unchanged; nothing to switch on.
 
 ## What you need
 
 - A Linux server with Docker and the Compose plugin (1–2 GB of RAM is plenty), ports 80 and 443 open.
-- A domain (or subdomain) whose DNS A record points at the server. Caddy gets the HTTPS certificate on first start.
+- In Cloudflare (stackyard.io): an **A record** `roomtone` → the server's IP, **proxied** (orange cloud), and SSL/TLS mode **Full**.
 - The API keys: Qloo (hackathon server), Anthropic, YouTube Data API v3.
 
 ## First deploy
@@ -24,7 +34,8 @@ cp .env.production.example .env.production
 
 Fill in `.env.production`:
 
-- `SERVER_NAME` and `APP_URL`: your domain (`roomtone.example.com` and `https://roomtone.example.com`).
+- `SERVER_NAME=roomtone.stackyard.io`, `APP_URL=https://roomtone.stackyard.io`, `TRUSTED_PROXIES=*` (already the example's values).
+- `REVERB_PUBLIC_HOST=roomtone.stackyard.io`, `REVERB_PUBLIC_PORT=443`, `REVERB_PUBLIC_SCHEME=https`: where browsers reach Reverb (built into the JavaScript, so rebuild after changing them).
 - `APP_KEY`: `php -r "echo 'base64:'.base64_encode(random_bytes(32)), PHP_EOL;"` (or `php artisan key:generate --show` in any Laravel checkout).
 - `QLOO_API_KEY`, `AI_PROVIDER_KEY`, `YOUTUBE_API_KEY`.
 - `REVERB_APP_KEY`, `REVERB_APP_SECRET`: any random strings. The key is built into the JavaScript, so rebuild after changing it.
@@ -56,13 +67,13 @@ docker compose --env-file .env.production exec web php artisan tinker
 
 ## Trying it on your own machine
 
-Set `SERVER_NAME=localhost` and `APP_URL=https://localhost` in `.env.production`, then:
+Plain HTTP, no certificate. In `.env.production` set `APP_URL=http://localhost`, `SERVER_NAME=http://localhost`, `SESSION_SECURE_COOKIE=false`, `TRUSTED_PROXIES=` (empty), `REVERB_PUBLIC_HOST=localhost`, `REVERB_PUBLIC_PORT=80`, `REVERB_PUBLIC_SCHEME=http`, then:
 
 ```bash
 docker compose --env-file .env.production up -d --build
 docker compose --env-file .env.production exec web php artisan roomtone:demo:build    # or, without API quota: db:seed --class=DemoPartySeeder --force
 ```
 
-Open https://localhost. Caddy signs `localhost` with its own local certificate, so the browser warns once. Stop with `docker compose --env-file .env.production down` (add `-v` to delete the database volume too).
+Open http://localhost. Stop with `docker compose --env-file .env.production down` (add `-v` to delete the database volume too).
 
-The production database starts empty: nothing is seeded, so `/e/DEMO` is a 404 until the demo is built.
+The database starts empty: nothing is seeded, so `/e/DEMO` is a 404 until the demo is built. Joining from a phone needs the public deploy (the QR points at `APP_URL`).
