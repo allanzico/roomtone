@@ -1,5 +1,10 @@
 import { useId, useRef, useState } from 'react';
-import type { KeyboardEvent, MouseEvent, PointerEvent } from 'react';
+import type {
+    CSSProperties,
+    KeyboardEvent,
+    MouseEvent,
+    PointerEvent,
+} from 'react';
 import { atFor, clockText, positions, snap, STEP, tripLabel } from './time';
 import type { Draft, PlanPoint } from './types';
 
@@ -208,6 +213,7 @@ export function PlanCurve({ draft, onChange, compact = false }: Props) {
                 ref={svg}
                 className="rt-curve"
                 viewBox={`0 0 ${W} ${H}`}
+                style={{ '--rt-curve-ratio': W / H } as CSSProperties}
                 role="group"
                 aria-label="Energy plan"
                 onClick={add}

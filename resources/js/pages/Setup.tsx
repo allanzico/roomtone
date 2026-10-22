@@ -88,16 +88,34 @@ export default function Setup() {
         [],
     );
     const composer = useRef<HTMLTextAreaElement>(null);
+    const dock = useRef<HTMLDivElement>(null);
+    const [dockHeight, setDockHeight] = useState(0);
     const firstOpen = messages.length === 0;
 
-    // After each DJ reply, focus stays in the composer and the newest line (and the plan) scroll into view.
+    // The dock (quick replies, the plan, its button, the composer) floats at the bottom; the chat keeps that much
+    // room under its last line.
+    useEffect(() => {
+        const box = dock.current;
+
+        if (!box) {
+            return;
+        }
+
+        const observer = new ResizeObserver(() =>
+            setDockHeight(box.offsetHeight),
+        );
+        observer.observe(box);
+
+        return () => observer.disconnect();
+    }, []);
+
+    // After each DJ reply (or when the dock changes height), focus stays in the composer and the chat follows its
+    // newest line down to just above the dock, never past the top of a long reply.
     useEffect(() => {
         if (!thinking) {
             composer.current?.focus({ preventScroll: true });
         }
 
-        // Towards the bottom (the plan and its button), but never past the DJ's newest line: in a short window
-        // the reply stays readable at the top and the button is one scroll away.
         const bottom =
             document.documentElement.scrollHeight - window.innerHeight;
         const lines = document.querySelectorAll('.rt-dj-line');
@@ -108,7 +126,7 @@ export default function Setup() {
                 : bottom,
             behavior: 'smooth',
         });
-    }, [thinking, messages.length, ready]);
+    }, [thinking, messages.length, ready, dockHeight]);
 
     const say = (dj: string) =>
         setMessages((all) => [...all, { from: 'dj', text: dj }]);
@@ -200,7 +218,12 @@ export default function Setup() {
             <Head title="Set up a room" />
             <main
                 className="rt-room rt-setup"
-                style={{ '--rt-dj': colour } as CSSProperties}
+                style={
+                    {
+                        '--rt-dj': colour,
+                        '--rt-dock-h': `${dockHeight}px`,
+                    } as CSSProperties
+                }
             >
                 <div className="rt-space" aria-hidden="true">
                     <Starfield />
@@ -278,7 +301,9 @@ export default function Setup() {
                             )}
                         </ol>
                     )}
+                </div>
 
+                <div className="rt-setup-dock" ref={dock}>
                     {!firstOpen && !thinking && choices.length > 0 && (
                         <ul className="rt-replies" aria-label="Quick replies">
                             {choices.map((choice) => (
@@ -308,64 +333,65 @@ export default function Setup() {
                                     setDraft({ ...draft, points })
                                 }
                             />
-                            <Facts
-                                draft={draft}
-                                onChange={setDraft}
-                                onAck={say}
-                            />
-                            <div className="rt-open">
-                                <button
-                                    type="button"
-                                    className="rt-start-button rt-open-cta"
-                                    onClick={open}
-                                    disabled={opening}
-                                >
-                                    {opening
-                                        ? 'Opening…'
-                                        : trip
-                                          ? 'Start the drive'
-                                          : 'Open the room'}
-                                </button>
-                                <p className="rt-start-note">
-                                    {trip
-                                        ? 'Everyone in the car can add songs from their phone.'
-                                        : 'Guests join by scanning the code, or with a shared link.'}
-                                </p>
+                            <div className="rt-plan-row">
+                                <Facts
+                                    draft={draft}
+                                    onChange={setDraft}
+                                    onAck={say}
+                                />
+                                <div className="rt-open">
+                                    <button
+                                        type="button"
+                                        className="rt-start-button rt-open-cta"
+                                        onClick={open}
+                                        disabled={opening}
+                                    >
+                                        {opening
+                                            ? 'Opening…'
+                                            : trip
+                                              ? 'Start the drive'
+                                              : 'Open the room'}
+                                    </button>
+                                    <p className="rt-start-note">
+                                        {trip
+                                            ? 'Everyone in the car can add songs from their phone.'
+                                            : 'Guests join by scanning the code, or with a shared link.'}
+                                    </p>
+                                </div>
                             </div>
                         </section>
                     )}
+                    <form className="rt-setup-composer" onSubmit={submit}>
+                        <label className="rt-sr" htmlFor="rt-setup-input">
+                            Tell the DJ
+                        </label>
+                        <textarea
+                            id="rt-setup-input"
+                            ref={composer}
+                            className="rt-ask-input rt-setup-input"
+                            rows={1}
+                            value={text}
+                            maxLength={MAX_LENGTH}
+                            onChange={(e) => setText(e.target.value)}
+                            onKeyDown={enterSends}
+                            placeholder={
+                                !firstOpen
+                                    ? 'Tell the DJ more'
+                                    : narrow
+                                      ? '4 hours to the coast with the kids'
+                                      : "Maria's 30th on the rooftop, or four hours to the coast with the kids"
+                            }
+                        />
+                        <button
+                            type="submit"
+                            className="rt-ask-send"
+                            aria-label="Send to the DJ"
+                            disabled={thinking || text.trim() === ''}
+                        >
+                            <span aria-hidden="true">↑</span>
+                        </button>
+                    </form>
                 </div>
-
-                <form className="rt-setup-composer" onSubmit={submit}>
-                    <label className="rt-sr" htmlFor="rt-setup-input">
-                        Tell the DJ
-                    </label>
-                    <textarea
-                        id="rt-setup-input"
-                        ref={composer}
-                        className="rt-ask-input rt-setup-input"
-                        rows={1}
-                        value={text}
-                        maxLength={MAX_LENGTH}
-                        onChange={(e) => setText(e.target.value)}
-                        onKeyDown={enterSends}
-                        placeholder={
-                            !firstOpen
-                                ? 'Tell the DJ more'
-                                : narrow
-                                  ? '4 hours to the coast with the kids'
-                                  : "Maria's 30th on the rooftop, or four hours to the coast with the kids"
-                        }
-                    />
-                    <button
-                        type="submit"
-                        className="rt-ask-send"
-                        aria-label="Send to the DJ"
-                        disabled={thinking || text.trim() === ''}
-                    >
-                        <span aria-hidden="true">↑</span>
-                    </button>
-                </form>
             </main>
         </>
     );

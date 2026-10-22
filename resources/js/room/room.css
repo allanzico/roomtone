@@ -1190,7 +1190,8 @@
         calc(100vw - 270px - var(--rt-gutter-laptop))
     );
     margin-left: 270px;
-    padding: 110px 0 180px;
+    /* Room for the floating dock under the last line. */
+    padding: 110px 0 calc(var(--rt-dock-h, 0px) + 32px);
 }
 
 .rt-setup-first {
@@ -1407,9 +1408,7 @@
 }
 
 .rt-curve-tools {
-    display: flex;
-    align-items: center;
-    min-height: var(--rt-tap);
+    margin-top: 2px;
 }
 
 .rt-curve-hint {
@@ -1491,27 +1490,67 @@
     min-height: 56px;
 }
 
-.rt-setup-composer {
+/* Everything the host acts on floats at the bottom: quick replies, the plan with its button, the composer. The
+   chat scrolls above it. */
+.rt-setup-dock {
+    --rt-curve-max-h: 20vh;
+
     position: fixed;
-    bottom: 64px;
+    bottom: 0;
     left: 270px;
+    z-index: 2;
     display: flex;
-    align-items: flex-end;
+    flex-direction: column;
     gap: 14px;
     width: min(
         var(--rt-chat-col),
         calc(100vw - 270px - var(--rt-gutter-laptop))
     );
+    padding: 28px 0 48px;
 }
 
-/* Lines scrolling under the pinned composer fade out instead of showing through it. */
-.rt-setup-composer::before {
+/* Lines scrolling under the dock fade out instead of showing through it. */
+.rt-setup-dock::before {
     position: absolute;
-    inset: -60px -40px -64px;
+    inset: 0 -100vw;
     z-index: -1;
-    background: linear-gradient(to bottom, transparent, var(--rt-space-0) 55%);
+    background: linear-gradient(to bottom, transparent, var(--rt-space-0) 40px);
     content: '';
     pointer-events: none;
+}
+
+.rt-setup-dock .rt-plan {
+    gap: 4px;
+}
+
+/* The curve keeps its proportions (dragging maps the pointer onto it) and never takes over a short window. */
+.rt-setup-dock .rt-curve {
+    width: min(100%, calc(var(--rt-curve-max-h) * var(--rt-curve-ratio)));
+}
+
+.rt-plan-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 28px;
+}
+
+.rt-setup-composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+}
+
+/* Short windows: the dock gives the chat more room. */
+@media (max-height: 820px) {
+    .rt-setup-dock {
+        padding-bottom: 28px;
+    }
+
+    .rt-setup-dock .rt-start-note {
+        display: none;
+    }
 }
 
 .rt-setup-input {
@@ -1531,7 +1570,7 @@
     .rt-setup-col {
         width: auto;
         margin: 0;
-        padding: 100px var(--rt-gutter-phone) 150px
+        padding: 100px var(--rt-gutter-phone) calc(var(--rt-dock-h, 0px) + 24px)
             calc(var(--rt-gutter-phone) + 26px);
     }
 
@@ -1598,11 +1637,12 @@
         min-height: 52px;
     }
 
-    .rt-setup-composer {
+    .rt-setup-dock {
         right: var(--rt-gutter-phone);
-        bottom: 40px;
         left: var(--rt-gutter-phone);
+        gap: 10px;
         width: auto;
+        padding: 28px 0 40px;
     }
 
     .rt-setup-input {
