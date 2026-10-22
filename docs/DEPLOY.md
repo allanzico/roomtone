@@ -44,7 +44,7 @@ Add `roomtone.stackyard.io` as a custom domain on the Render service, then in Cl
 ## The smoke test
 
 ```bash
-scripts/smoke.sh
+docker/smoke.sh
 ```
 
 Builds the image and runs it the way Render does (`PORT=10000`, the `render.yaml` settings, a volume as the disk), then checks: the queue worker, Reverb and scheduler are running, pages and security headers, a demo copy, a guest joining with the live `GuestJoined` event over the websocket, the guest's page, and a backup. Everything it created is removed afterwards. Needs no API keys. Run it before pushing Docker changes.

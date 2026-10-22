@@ -2,7 +2,7 @@
 # Smoke test of the Docker image: builds it and runs it the way Render does (one container, PORT=10000, the
 # render.yaml settings, a volume for the disk), then checks it end to end. Needs no API keys. Everything it
 # creates is removed on exit.
-#   scripts/smoke.sh [host port]
+#   docker/smoke.sh [host port]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -28,7 +28,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "ok - $*"; }
 run() { docker exec "$name" "$@"; }
 
-docker build -q --build-arg REVERB_APP_KEY=$key -t roomtone:smoke . >/dev/null
+docker build -q -f docker/Dockerfile --build-arg REVERB_APP_KEY=$key -t roomtone:smoke . >/dev/null
 docker run -d --name "$name" -p "127.0.0.1:${port}:10000" -v "$name:/var/roomtone" \
 	-e PORT=10000 -e APP_ENV=production -e APP_DEBUG=false -e APP_URL="$base" \
 	-e APP_KEY="base64:$(head -c 32 /dev/urandom | base64)" -e TRUSTED_PROXIES='*' \

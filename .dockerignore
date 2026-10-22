@@ -23,6 +23,6 @@ resources/js/wayfinder
 tests
 .phpunit.cache
 docs/spikes
-scripts
+docker/smoke.sh
 compose.yaml
 render.yaml

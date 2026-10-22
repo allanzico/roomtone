@@ -6,6 +6,7 @@ services:
   - type: web
     name: roomtone
     runtime: docker
+    dockerfilePath: ./docker/Dockerfile
     plan: starter
     region: frankfurt
     healthCheckPath: /up

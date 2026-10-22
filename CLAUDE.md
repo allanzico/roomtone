@@ -154,7 +154,7 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 - Render passes service env vars to the build as build args; only `REVERB_APP_KEY` is used (it is public and fixed to `roomtone` in `render.yaml`: generated values are base64 and a `/` would break the socket URL). With no `VITE_REVERB_HOST` (Docker builds) `app.tsx` connects Echo to the page's own host, port and scheme.
 - `TRUSTED_PROXIES=*` (config `app.trusted_proxies`, applied in `AppServiceProvider` via `TrustProxies::at`) makes rate limits see real visitor IPs through Render and Cloudflare. Inertia SSR is off in Docker (`INERTIA_SSR_ENABLED=false`), on locally.
 - `roomtone:backup` (daily 03:30) writes `VACUUM INTO` copies to `/var/roomtone/backups/` and keeps 7 (don't restore Render disk snapshots of a live SQLite file); its test uses its own SQLite file (VACUUM can't run inside RefreshDatabase's transaction).
-- `scripts/smoke.sh` runs the image as Render would (`PORT=10000`) and checks it end to end, including a guest join over the websocket. Run it before pushing Docker changes. With SSR off the page text is in the JS chunks, not the HTML.
+- `docker/smoke.sh` runs the image as Render would (`PORT=10000`) and checks it end to end, including a guest join over the websocket. Run it before pushing Docker changes. With SSR off the page text is in the JS chunks, not the HTML.
 
 ## Taste test
 

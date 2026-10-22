@@ -5,6 +5,7 @@ services:
   app:
     build:
       context: .
+      dockerfile: docker/Dockerfile
       args:
         REVERB_APP_KEY: local-key
     image: roomtone:local
