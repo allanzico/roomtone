@@ -23,8 +23,6 @@ resources/js/wayfinder
 tests
 .phpunit.cache
 docs/spikes
-docker/certs
-compose.*.yaml
-deploy.sh
 scripts
-Makefile
+compose.yaml
+render.yaml

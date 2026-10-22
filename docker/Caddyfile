@@ -1,20 +1,11 @@
-# Roomtone's web server: FrankenPHP (PHP inside Caddy). The same file serves every environment.
-#   SERVER_NAME   the site address: a hostname (roomtone.stackyard.io) for HTTPS, or ":8080" for plain HTTP
-#   ROOMTONE_TLS  how a hostname gets its certificate (a file in docker/caddy/):
-#                   none      plain HTTP (use with SERVER_NAME=:8080; local runs)
-#                   internal  Caddy signs it itself: Cloudflare in front, SSL mode "Full"
-#                   origin    a Cloudflare Origin Certificate in /certs (SSL mode "Full (strict)")
-#                   auto      Let's Encrypt (no Cloudflare proxy in front)
+# Roomtone's web server: FrankenPHP (PHP inside Caddy), plain HTTP on $PORT (80 locally; Render sets its own and
+# handles HTTPS in front).
 {
 	frankenphp
-	# Not 80/443: the container runs as www-data, and Docker maps the host's 80/443 to these.
-	http_port 8080
-	https_port 8443
-	# Nothing in the container trusts Caddy's own CA (Cloudflare checks nothing in "Full" mode).
-	skip_install_trust
+	auto_https off
 }
 
-(app) {
+:{$PORT:80} {
 	root * /app/public
 	encode zstd br gzip
 
@@ -25,19 +16,8 @@
 		-Server
 	}
 
-	# Reverb: browsers connect to ws(s)://<host>/app/<key>; the app publishes events to /apps/<id>/events.
-	@reverb path /app/* /apps/*
-	reverse_proxy @reverb reverb:8080
+	# Reverb runs in the same container: browsers connect to ws(s)://<host>/app/<key>.
+	reverse_proxy /app/* 127.0.0.1:8080
 
 	php_server
-}
-
-{$SERVER_NAME::8080} {
-	import /etc/frankenphp/tls/{$ROOMTONE_TLS:none}.caddy
-	import app
-}
-
-# Plain HTTP for health checks inside the Docker network (never published).
-:8081 {
-	import app
 }

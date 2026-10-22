@@ -16,8 +16,6 @@
 .env.backup
 .env.production
 .env.docker
-/docker/certs/*
-!/docker/certs/.gitkeep
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
@@ -45,4 +43,3 @@ yarn-error.log
 /opencode.json
 /opencode.jsonc
 __pycache__/
-.deploy.lock

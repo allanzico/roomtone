@@ -66,7 +66,7 @@ YouTube allows about 100 searches a day. Each track is looked up once and rememb
 
 ## Deploy
 
-One Docker image (FrankenPHP with Caddy for HTTPS) running web, queue, Reverb and the scheduler, with SQLite on a volume. See [docs/DEPLOY.md](docs/DEPLOY.md).
+One Docker container (FrankenPHP: PHP with Caddy) runs the site, the queue worker, Reverb and the scheduler, with SQLite on a disk. `docker compose up` runs it locally; `render.yaml` deploys it to Render. See [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Tests
 

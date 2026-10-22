@@ -1,0 +1,74 @@
+# Render Blueprint: Roomtone as one Docker web service with a disk for SQLite.
+# Render serves HTTPS and passes these variables to the Docker build as build args (only REVERB_APP_KEY is used).
+# A disk needs a paid plan, belongs to one service only (so the queue, Reverb and the scheduler run in the same
+# container: docker/start.sh), and means a few seconds of downtime per deploy.
+services:
+  - type: web
+    name: roomtone
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /up
+    disk:
+      name: roomtone-data
+      mountPath: /var/roomtone
+      sizeGB: 1
+    envVars:
+      - key: APP_NAME
+        value: Roomtone
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      # php artisan key:generate --show
+      - key: APP_KEY
+        sync: false
+      # The public address, e.g. https://roomtone.stackyard.io or https://roomtone.onrender.com
+      - key: APP_URL
+        sync: false
+      # Requests arrive through Render's proxy (and Cloudflare): read the visitor's IP and scheme from it.
+      - key: TRUSTED_PROXIES
+        value: "*"
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: info
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: DB_DATABASE
+        value: /var/roomtone/database.sqlite
+      - key: SESSION_DRIVER
+        value: database
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: BROADCAST_CONNECTION
+        value: reverb
+      - key: INERTIA_SSR_ENABLED
+        value: "false"
+      - key: QLOO_API_KEY
+        sync: false
+      - key: QLOO_API_URL
+        value: https://hackathon.api.qloo.com
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: AI_PROVIDER_KEY
+        sync: false
+      - key: AI_MODEL
+        value: claude-haiku-5-5
+      # Reverb runs inside the container; the key is public (it is in the JavaScript and the socket URL).
+      - key: REVERB_APP_ID
+        value: roomtone
+      - key: REVERB_APP_KEY
+        value: roomtone
+      - key: REVERB_APP_SECRET
+        generateValue: true
+      - key: REVERB_HOST
+        value: 127.0.0.1
+      - key: REVERB_PORT
+        value: "8080"
+      - key: REVERB_SCHEME
+        value: http

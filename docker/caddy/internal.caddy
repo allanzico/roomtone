@@ -1,2 +1,0 @@
-# Caddy signs the hostname with its own certificate: Cloudflare in front, SSL mode "Full".
-tls internal

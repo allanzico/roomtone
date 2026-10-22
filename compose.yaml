@@ -1,0 +1,32 @@
+# Roomtone in Docker on this machine: http://localhost (one container, as on Render).
+#   cp .env.docker.example .env.docker   (set APP_KEY)
+#   docker compose up -d --build
+services:
+  app:
+    build:
+      context: .
+      args:
+        REVERB_APP_KEY: local-key
+    image: roomtone:local
+    env_file: .env.docker
+    environment:
+      APP_ENV: local
+      APP_URL: http://localhost
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/roomtone/database.sqlite
+      LOG_CHANNEL: stderr
+      INERTIA_SSR_ENABLED: "false"
+      REVERB_APP_ID: roomtone
+      REVERB_APP_KEY: local-key
+      REVERB_APP_SECRET: local-secret
+      REVERB_HOST: 127.0.0.1
+      REVERB_PORT: 8080
+      REVERB_SCHEME: http
+    ports:
+      - "80:80"
+    volumes:
+      - database:/var/roomtone
+    restart: unless-stopped
+
+volumes:
+  database:
