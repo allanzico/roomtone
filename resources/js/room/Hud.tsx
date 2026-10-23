@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AskDj } from './AskDj';
-import { guestColor, listOf, mixBar, mixOf } from './genres';
+import { clusterColor, guestColor, listOf, mixBar, mixOf } from './genres';
 import type { MixSegment } from './genres';
 import { reducedMotion } from './stage';
 import { useRoom } from './store';
@@ -14,6 +14,8 @@ import {
     startPosition,
     videoRect,
     VideoTile,
+    VolumeControl,
+    volumePosition,
 } from './VideoTile';
 
 /**
@@ -48,6 +50,9 @@ export function Hud({
             {playable && <VideoTile style={videoRect(stage)} />}
             {playable && !started && (
                 <StartParty style={startPosition(stage)} />
+            )}
+            {playable && started && stage.layout === 'tv' && (
+                <VolumeControl style={volumePosition(stage)} />
             )}
             <Arrivals />
         </>
@@ -133,13 +138,12 @@ function PhoneHud({ poolBottom }: { poolBottom: number }) {
 
 function useMix(): MixSegment[] {
     const clusters = useRoom((s) => s.clusters);
-    const guests = useRoom((s) => s.guests);
     const nowPlaying = useRoom((s) => s.nowPlaying);
     const queue = useRoom((s) => s.queue);
 
     return useMemo(
-        () => mixOf(clusters, guests, nowPlaying, queue),
-        [clusters, guests, nowPlaying, queue],
+        () => mixOf(clusters, nowPlaying, queue),
+        [clusters, nowPlaying, queue],
     );
 }
 
@@ -219,6 +223,7 @@ function Join({ large }: { large: boolean }) {
             <div className="rt-join-text">
                 <p className="rt-join-url">{join.host}</p>
                 <p className="rt-code">{code}</p>
+                <CopyLink url={join.url} />
             </div>
             {/* Drawn by the server from the join link; trusted markup. */}
             <div
@@ -228,6 +233,33 @@ function Join({ large }: { large: boolean }) {
                 dangerouslySetInnerHTML={{ __html: join.qr }}
             />
         </aside>
+    );
+}
+
+/** The guest link to paste into a group chat. */
+function CopyLink({ url }: { url: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // The browser refused (plain HTTP on a network address, or the page lost focus): show it to copy by hand.
+            window.prompt('Copy the link to the room', url);
+        }
+    };
+
+    return (
+        <button
+            type="button"
+            className="rt-copy-link"
+            onClick={() => void copy()}
+            aria-live="polite"
+        >
+            {copied ? 'Link copied' : 'Copy link'}
+        </button>
     );
 }
 
@@ -485,7 +517,9 @@ function UpNext() {
 
                     return (
                         <li key={item.id} className="rt-next-item">
-                            <Dot color={guestColor(guest, clusters)} />
+                            <Dot
+                                color={clusterColor(item.clusterId, clusters)}
+                            />
                             <span className="rt-next-title" title={item.title}>
                                 {item.title}
                             </span>
@@ -595,7 +629,7 @@ function PlaybackBar() {
 
     return (
         <nav className="rt-playback" aria-label="Playback">
-            <span className="rt-playback-room">Room</span>
+            <VolumeControl />
             <button
                 type="button"
                 className="rt-pause"

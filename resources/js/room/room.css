@@ -755,11 +755,6 @@
     font-size: 17px;
 }
 
-.rt-playback-room {
-    padding-left: 4px;
-    color: var(--rt-text-3);
-}
-
 .rt-pause {
     display: grid;
     place-items: center;
@@ -810,6 +805,58 @@
     width: 100%;
     height: 100%;
     border: 0;
+}
+
+/* Volume down/up: beside the player on a TV, in the playback bar on a phone. */
+.rt-volume {
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--rt-text-3);
+    font-size: 15px;
+}
+
+.rt-volume button {
+    display: grid;
+    place-items: center;
+    width: var(--rt-tap);
+    height: var(--rt-tap);
+    border: 1px solid var(--rt-line);
+    border-radius: var(--rt-radius-pill);
+    background: rgb(0 0 0 / 0.35);
+    color: var(--rt-ink);
+    font: inherit;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.rt-volume button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.rt-volume-level {
+    min-width: 4.2em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.rt-copy-link {
+    margin-top: 6px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px dashed var(--rt-line);
+    background: transparent;
+    color: var(--rt-text-3);
+    font: inherit;
+    font-size: var(--rt-fs-micro);
+    cursor: pointer;
+}
+
+.rt-copy-link:hover {
+    color: var(--rt-ink);
 }
 
 .rt-start {

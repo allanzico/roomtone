@@ -161,6 +161,7 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
                         onReady: () => {
                             player = created;
                             current = created;
+                            created.setVolume(useRoom.getState().volume);
                             sync();
                         },
                         onStateChange: (event) => {
@@ -180,6 +181,10 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
             });
 
         const unsubscribe = useRoom.subscribe((state, prev) => {
+            if (state.volume !== prev.volume) {
+                player?.setVolume(state.volume);
+            }
+
             if (
                 state.nowPlaying?.id !== prev.nowPlaying?.id ||
                 state.started !== prev.started ||
@@ -210,6 +215,52 @@ export function startPlayback(): void {
     current?.unMute();
     current?.playVideo();
     useRoom.getState().start();
+}
+
+/** Volume down/up beside the player: above the tile's right edge on a TV (never over the video). */
+export function volumePosition(stage: Stage): CSSProperties {
+    const tile = tvVideoBox(stage);
+
+    return {
+        position: 'fixed',
+        left: tile.left + tile.width,
+        top: tile.top - 12,
+        translate: '-100% -100%',
+    };
+}
+
+export function VolumeControl({ style }: { style?: CSSProperties }) {
+    const volume = useRoom((s) => s.volume);
+    const setVolume = useRoom((s) => s.setVolume);
+
+    return (
+        <div
+            className="rt-volume"
+            style={style}
+            role="group"
+            aria-label="Volume"
+        >
+            <button
+                type="button"
+                aria-label="Volume down"
+                onClick={() => setVolume(volume - 10)}
+                disabled={volume <= 0}
+            >
+                <span aria-hidden="true">−</span>
+            </button>
+            <span className="rt-volume-level" aria-live="polite">
+                {volume === 0 ? 'Muted' : `${volume}%`}
+            </span>
+            <button
+                type="button"
+                aria-label="Volume up"
+                onClick={() => setVolume(volume + 10)}
+                disabled={volume >= 100}
+            >
+                <span aria-hidden="true">+</span>
+            </button>
+        </div>
+    );
 }
 
 export function StartParty({ style }: { style: CSSProperties }) {

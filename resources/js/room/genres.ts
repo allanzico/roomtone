@@ -55,7 +55,11 @@ export function guestColor(
     guest: Guest | undefined,
     clusters: Cluster[],
 ): string {
-    const id = dominantClusterId(guest);
+    return clusterColor(dominantClusterId(guest), clusters);
+}
+
+/** Base colour of a cluster, for a track's dot. No cluster gets a quiet grey. */
+export function clusterColor(id: number | null, clusters: Cluster[]): string {
     const index = clusters.findIndex((c) => c.id === id);
 
     return index < 0
@@ -209,27 +213,20 @@ const MAX_SEGMENTS = 4;
  */
 export function mixOf(
     clusters: Cluster[],
-    guests: Guest[],
     nowPlaying: SetItem | null,
     queue: SetItem[],
 ): MixSegment[] {
     const items = nowPlaying ? [nowPlaying, ...queue] : queue;
     const counts = new Map<number, number>();
 
+    // A track counts for its own genre, not for the genre of the guest it is for.
     for (const item of items) {
-        const guest = guests.find((g) => g.id === item.reasonGuestId);
-        const id = dominantClusterId(guest);
-
-        if (id !== null) {
-            counts.set(id, (counts.get(id) ?? 0) + 1);
+        if (item.clusterId !== null) {
+            counts.set(item.clusterId, (counts.get(item.clusterId) ?? 0) + 1);
         }
     }
 
-    const playingId = nowPlaying
-        ? dominantClusterId(
-              guests.find((g) => g.id === nowPlaying.reasonGuestId),
-          )
-        : null;
+    const playingId = nowPlaying?.clusterId ?? null;
 
     return clusters
         .map((cluster, index) => ({

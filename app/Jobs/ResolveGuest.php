@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\SetItemStatus;
 use App\Events\RoomUpdated;
 use App\Models\Guest;
 use App\Services\Dj\GuestResolver;
@@ -32,6 +33,9 @@ class ResolveGuest implements ShouldQueue
         $resolver->resolve($this->guest);
         RoomUpdated::for($this->guest->event);
 
-        BuildSet::dispatch($this->guest->event)->delay(now()->addSeconds(BuildSet::DEBOUNCE_SECONDS));
+        // The room's first set builds at once; later rebuilds wait a moment so guests joining together share one.
+        $event = $this->guest->event;
+        $waiting = $event->setItems()->where('status', SetItemStatus::Queued)->exists();
+        BuildSet::dispatch($event)->delay($waiting ? now()->addSeconds(BuildSet::DEBOUNCE_SECONDS) : null);
     }
 }

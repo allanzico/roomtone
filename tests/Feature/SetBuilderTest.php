@@ -178,11 +178,16 @@ test('set target is about 1.2 tracks per guest with results, between 10 and 40',
         ->and(SetBuilder::targetFor(50))->toBe(40);
 });
 
-test('resolving a guest schedules one debounced set build per event', function () {
+test('the room\'s first set builds at once; later builds wait so guests joining together share one', function () {
     Queue::fake();
 
     (new ResolveGuest($this->gran))->handle(app(GuestResolver::class));
+    Queue::assertPushed(BuildSet::class, fn (BuildSet $job) => $job->event->is($this->event) && $job->delay === null);
 
+    $this->event->setItems()->create(['track_id' => Track::create(['artist' => 'A', 'title' => 'T'])->id, 'position' => 1, 'status' => SetItemStatus::Queued, 'reason_text' => '']);
+    Queue::fake();
+
+    (new ResolveGuest($this->gran))->handle(app(GuestResolver::class));
     Queue::assertPushed(BuildSet::class, fn (BuildSet $job) => $job->event->is($this->event) && $job->delay !== null);
     expect((new BuildSet($this->event))->uniqueId())->toBe((string) $this->event->id);
 });

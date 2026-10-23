@@ -28,6 +28,8 @@ type RoomState = {
     started: boolean;
     /** Host pressed pause. */
     paused: boolean;
+    /** Player volume, 0–100 in steps of 10; remembered on this device. */
+    volume: number;
     /** Realtime connection dropped (Phase 2+). The last state stays on screen. */
     reconnecting: boolean;
     stage: Stage;
@@ -46,10 +48,22 @@ type RoomState = {
     setEnergy: (energy: number) => void;
     setAudioLevel: (level: number) => void;
     togglePaused: () => void;
+    setVolume: (volume: number) => void;
     start: () => void;
     stop: () => void;
     setStage: (stage: Stage) => void;
 };
+
+const VOLUME_KEY = 'roomtone-volume';
+
+function savedVolume(): number {
+    const saved =
+        typeof window === 'undefined'
+            ? null
+            : Number(window.localStorage.getItem(VOLUME_KEY) ?? NaN);
+
+    return saved !== null && saved >= 0 && saved <= 100 ? saved : 100;
+}
 
 export const useRoom = create<RoomState>()((set) => ({
     event: { code: '', name: '', occasion: null, energy: 3 },
@@ -61,6 +75,7 @@ export const useRoom = create<RoomState>()((set) => ({
     audioLevel: 0,
     started: false,
     paused: false,
+    volume: savedVolume(),
     reconnecting: false,
     join: { url: '', host: '', qr: '' },
     hostKey: null,
@@ -137,6 +152,11 @@ export const useRoom = create<RoomState>()((set) => ({
     setAudioLevel: (audioLevel) => set({ audioLevel }),
 
     togglePaused: () => set((state) => ({ paused: !state.paused })),
+    setVolume: (volume) => {
+        const next = Math.min(100, Math.max(0, Math.round(volume / 10) * 10));
+        window.localStorage.setItem(VOLUME_KEY, String(next));
+        set({ volume: next });
+    },
 
     start: () => set({ started: true, paused: false }),
 

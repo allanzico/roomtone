@@ -70,3 +70,25 @@ test('host room sends each track\'s video id', function () {
 
     $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.videoId', 'abc123'));
 });
+
+test('a track takes the island of its own artist\'s genres, not of the guest it is for', function () {
+    $event = Event::where('code', 'DEMO')->firstOrFail();
+    $playing = $event->setItems()->with('track')->where('status', SetItemStatus::Playing)->firstOrFail();
+    $guest = $event->guests()->findOrFail($playing->reason_guest_id);
+    $fado = $event->tasteClusters()->where('label', 'Fado')->firstOrFail();
+    $love = $guest->loves()->firstOrFail();
+    $playing->update(['reason_love_id' => $love->id]);
+
+    $pool = fn (array $genres) => [['id' => 'q1', 'name' => $playing->track->artist, 'songs' => [], 'genres' => $genres, 'rank' => 1]];
+
+    $love->update(['pool' => $pool(['Fado', 'World'])]);
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.clusterId', $fado->id));
+
+    // No island matches the artist's genres: no genre at all, whatever the guest's island is.
+    $love->update(['pool' => $pool(['Chamber Pop', 'Indie Folk'])]);
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.clusterId', null));
+});
+
+test('a track with no genre data falls back to its guest\'s island', function () {
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->whereNot('nowPlaying.clusterId', null));
+});

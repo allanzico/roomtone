@@ -11,6 +11,8 @@ type Props = {
         loves: {
             text: string;
             status: 'pending' | 'resolved' | 'unresolved';
+            /** What the DJ read it as, when that differs from the text. */
+            as: string | null;
         }[];
     };
     song: {
@@ -53,7 +55,9 @@ export default function Guest({ event, guest, song, reading }: Props) {
                             <li key={love.text} data-status={love.status}>
                                 <span>{love.text}</span>
                                 <span className="rt-guest-love-status">
-                                    {STATUS[love.status]}
+                                    {love.status === 'resolved' && love.as
+                                        ? `Got it: ${love.as}`
+                                        : STATUS[love.status]}
                                 </span>
                             </li>
                         ))}

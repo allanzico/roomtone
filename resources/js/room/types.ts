@@ -38,6 +38,8 @@ export type SetItem = {
     energy: number;
     reasonGuestId: number | null;
     reasonText: string;
+    /** The island of the track's own genre (its artist's Qloo tags), or null when it matches none. */
+    clusterId: number | null;
 };
 
 export type HostRequestState = {

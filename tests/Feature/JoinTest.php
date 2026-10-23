@@ -88,17 +88,20 @@ test('a guest\'s cookie only counts in their own room', function () {
 
 test('the guest page shows how the DJ read each love, then their song and how far away it is', function () {
     $maria = $this->event->guests()->create(['name' => 'Maria', 'color' => '#ffffff']);
-    $maria->loves()->create(['raw_text' => 'Ozark', 'status' => LoveStatus::Resolved]);
+    $maria->loves()->create(['raw_text' => 'Ozark', 'status' => LoveStatus::Resolved, 'resolved_name' => 'Ozark']);
     $maria->loves()->create(['raw_text' => 'qxzv', 'status' => LoveStatus::Unresolved]);
     $maria->loves()->create(['raw_text' => 'Lisbon']);
+    $maria->loves()->create(['raw_text' => 'Rice and beans', 'status' => LoveStatus::Resolved, 'resolved_name' => 'Rio de Janeiro']);
     $as = fn () => $this->withCookie('roomtone_guest_JOIN01', (string) $maria->id);
 
     $as()->get('/e/JOIN01/me')->assertInertia(fn (Assert $page) => $page
         ->component('Guest')
         ->where('guest.loves', [
-            ['text' => 'Ozark', 'status' => 'resolved'],
-            ['text' => 'qxzv', 'status' => 'unresolved'],
-            ['text' => 'Lisbon', 'status' => 'pending'],
+            // "as" only when the DJ read it as something else.
+            ['text' => 'Ozark', 'status' => 'resolved', 'as' => null],
+            ['text' => 'qxzv', 'status' => 'unresolved', 'as' => null],
+            ['text' => 'Lisbon', 'status' => 'pending', 'as' => null],
+            ['text' => 'Rice and beans', 'status' => 'resolved', 'as' => 'Rio de Janeiro'],
         ])
         ->where('reading', true)
         ->where('song', null));

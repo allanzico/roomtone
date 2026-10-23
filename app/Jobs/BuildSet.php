@@ -19,7 +19,7 @@ class BuildSet implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Queueable;
 
-    public const DEBOUNCE_SECONDS = 20;
+    public const DEBOUNCE_SECONDS = 8;
 
     public int $tries = 1;
 

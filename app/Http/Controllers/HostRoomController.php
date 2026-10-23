@@ -13,6 +13,8 @@ use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -36,6 +38,8 @@ class HostRoomController extends Controller
             ->get();
 
         $nowPlaying = $set->firstWhere('status', SetItemStatus::Playing);
+        $loves = $event->guests->flatMap->loves->keyBy('id');
+        $item = fn (SetItem $item) => $this->setItem($item, $this->clusterOf($item, $event, $loves));
         $key = $request->query('key');
         $isHost = $event->isHostKey($key);
         $latest = $isHost ? $event->hostRequests()->latest('id')->first() : null;
@@ -64,8 +68,8 @@ class HostRoomController extends Controller
                     'weight' => (float) $cluster->getRelationValue('pivot')->weight,
                 ])->values(),
             ])->values(),
-            'nowPlaying' => $nowPlaying ? $this->setItem($nowPlaying) : null,
-            'queue' => $set->where('status', SetItemStatus::Queued)->map($this->setItem(...))->values(),
+            'nowPlaying' => $nowPlaying ? $item($nowPlaying) : null,
+            'queue' => $set->where('status', SetItemStatus::Queued)->map($item)->values(),
             // What guests scan: the join page, as a QR the server draws (no JavaScript QR library).
             'join' => $this->join($event->code),
             // Only for the host link: the key the screen sends back with requests and playback updates.
@@ -95,9 +99,37 @@ class HostRoomController extends Controller
     }
 
     /**
-     * @return array{id: int, title: string, artist: string, videoId: string|null, energy: int, reasonGuestId: int|null, reasonText: string}
+     * The island a track belongs to, by its own artist's Qloo genres (kept in the reason love's pool): the room's
+     * cluster with a matching label, the reason guest's strongest one first. Null when none matches, so a song is
+     * never labelled with a genre just because of who it is for.
+     *
+     * @param  Collection<int, GuestLove>  $loves
      */
-    private function setItem(SetItem $item): array
+    private function clusterOf(SetItem $item, Event $event, Collection $loves): ?int
+    {
+        $pool = $loves->get($item->reason_love_id)->pool ?? [];
+        $artist = collect($pool)->first(fn (array $a) => Str::lower($a['name']) === Str::lower($item->track->artist));
+        // The reason guest's islands, strongest first.
+        $theirs = ($event->guests->firstWhere('id', $item->reason_guest_id)->clusters ?? collect())
+            ->sortByDesc(fn (TasteCluster $c) => (float) $c->getRelationValue('pivot')->weight)->values();
+
+        // No genre data for this artist at all (the fake demo, older pools): the guest's own island is the best guess.
+        if ($artist === null || ! isset($artist['genres'])) {
+            return $theirs->first()?->id;
+        }
+
+        $genres = array_map(Str::lower(...), $artist['genres']);
+        $matching = $event->tasteClusters->filter(fn (TasteCluster $c) => in_array(Str::lower($c->label), $genres, true));
+
+        $rank = array_flip($theirs->pluck('id')->all());
+
+        return $matching->sortBy(fn (TasteCluster $c) => $rank[$c->id] ?? PHP_INT_MAX)->first()?->id;
+    }
+
+    /**
+     * @return array{id: int, title: string, artist: string, videoId: string|null, energy: int, reasonGuestId: int|null, reasonText: string, clusterId: int|null}
+     */
+    private function setItem(SetItem $item, ?int $clusterId): array
     {
         return [
             'id' => $item->id,
@@ -107,6 +139,7 @@ class HostRoomController extends Controller
             'energy' => $item->track->energy,
             'reasonGuestId' => $item->reason_guest_id,
             'reasonText' => $item->reason_text,
+            'clusterId' => $clusterId,
         ];
     }
 }

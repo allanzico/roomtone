@@ -9,6 +9,8 @@ export type YouTubePlayer = {
     loadVideoById(videoId: string): void;
     cueVideoById(videoId: string): void;
     unMute(): void;
+    /** 0–100. */
+    setVolume(volume: number): void;
     destroy(): void;
 };
 

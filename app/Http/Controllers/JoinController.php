@@ -14,6 +14,7 @@ use App\Services\Dj\GuestResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -82,6 +83,9 @@ class JoinController extends Controller
                 'loves' => $guest->loves()->orderBy('id')->get()->map(fn (GuestLove $love) => [
                     'text' => $love->raw_text,
                     'status' => $love->status->value,
+                    // What the DJ read it as, when that's not just the text again ("Rice and beans" → Rio de Janeiro).
+                    'as' => $love->resolved_name !== null && Str::lower($love->resolved_name) !== Str::lower($love->raw_text)
+                        ? $love->resolved_name : null,
                 ])->all(),
             ],
             'song' => $item === null ? null : [
