@@ -891,6 +891,23 @@
     cursor: pointer;
 }
 
+.rt-guest-change {
+    align-self: flex-start;
+    min-height: var(--rt-tap);
+    padding: 0;
+    border: 0;
+    border-bottom: 1px dashed var(--rt-line);
+    background: transparent;
+    color: var(--rt-text-3);
+    font: inherit;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.rt-guest-change:hover {
+    color: var(--rt-ink);
+}
+
 .rt-end-party {
     min-height: 32px;
     padding: 0 12px;

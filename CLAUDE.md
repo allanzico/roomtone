@@ -136,6 +136,7 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 ## Guest join and realtime (Phase 2, built after Phase 7)
 
 - Guests: `/e/{code}` (join: name ≤ 40, exactly three loves ≤ 80, trimmed) → `POST /e/{code}/guests` → `/e/{code}/me` (how each love was read, then their song and how far away it is). A cookie `roomtone_guest_{CODE}` (48 h) remembers the phone; a returning phone goes to its page instead of joining twice. Demo copies can be joined.
+- On their page a guest can change their name and loves (`PUT /e/{code}/me`, same `GuestForm` as joining): changed loves are reset to pending in place (ids kept, so played tracks keep their reasons), `ResolveGuest` runs again and the set rebuilds as usual. A love read as a place shows "Got it: music from Rio de Janeiro" (`place`), since a food is bridged to its city's music.
 - The host screen's QR is an SVG of the join link drawn server-side with `bacon/bacon-qr-code` (already installed via Fortify). No JS QR library.
 - Realtime is Laravel Reverb (`php artisan dev` starts it on :8080; deploy must run `php artisan reverb:start` and proxy websockets). Public channel `room.{CODE}`: `GuestJoined` (the guest, so the point lands at once) and `RoomUpdated` (empty: screens reload their props) after stage 1, set builds and host requests. Tests broadcast to the `null` driver.
 - Reverb needs `guzzlehttp/psr7` ^2, so Guzzle is 7.x (not 8). `@babel/core` is pinned as a dev dependency: adding the Echo packages made npm drop it as an auto-installed peer and broke the Vite build.

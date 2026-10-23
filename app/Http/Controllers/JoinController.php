@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\LoveStatus;
 use App\Enums\SetItemStatus;
 use App\Events\GuestJoined;
+use App\Events\RoomUpdated;
 use App\Http\Requests\JoinRoomRequest;
 use App\Jobs\ResolveGuest;
 use App\Models\Event;
@@ -86,6 +87,8 @@ class JoinController extends Controller
                     // What the DJ read it as, when that's not just the text again ("Rice and beans" → Rio de Janeiro).
                     'as' => $love->resolved_name !== null && Str::lower($love->resolved_name) !== Str::lower($love->raw_text)
                         ? $love->resolved_name : null,
+                    // Read as a place: its music stands in for the love ("music from Rio de Janeiro").
+                    'place' => $love->qloo_type === 'location',
                 ])->all(),
             ],
             'song' => $item === null ? null : [
@@ -99,6 +102,42 @@ class JoinController extends Controller
             ],
             'reading' => $guest->loves()->where('status', LoveStatus::Pending)->exists(),
         ]);
+    }
+
+    /**
+     * The guest changes their name or loves. Changed loves are read again (stage 1), and the set rebuilds after,
+     * as for a new guest. Love ids stay, so tracks already played keep their reasons.
+     */
+    public function update(JoinRoomRequest $request, string $code): RedirectResponse
+    {
+        $event = $this->event($code);
+        $guest = $this->guest($request, $event);
+
+        if ($guest === null) {
+            return redirect()->route('events.join', $event->code);
+        }
+
+        $guest->update(['name' => (string) $request->validated('name')]);
+        $texts = array_values((array) $request->validated('loves'));
+        $changed = false;
+
+        foreach ($guest->loves()->orderBy('id')->get()->values() as $i => $love) {
+            $text = GuestResolver::clean((string) ($texts[$i] ?? ''));
+
+            if ($text !== $love->raw_text) {
+                $love->update(['raw_text' => $text, 'status' => LoveStatus::Pending, 'pool' => null,
+                    'qloo_entity_id' => null, 'qloo_type' => null, 'resolved_name' => null]);
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            ResolveGuest::dispatch($guest);
+        }
+
+        RoomUpdated::for($event);
+
+        return redirect()->route('events.me', $event->code);
     }
 
     private function event(string $code): Event

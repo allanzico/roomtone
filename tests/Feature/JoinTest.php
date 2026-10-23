@@ -91,17 +91,17 @@ test('the guest page shows how the DJ read each love, then their song and how fa
     $maria->loves()->create(['raw_text' => 'Ozark', 'status' => LoveStatus::Resolved, 'resolved_name' => 'Ozark']);
     $maria->loves()->create(['raw_text' => 'qxzv', 'status' => LoveStatus::Unresolved]);
     $maria->loves()->create(['raw_text' => 'Lisbon']);
-    $maria->loves()->create(['raw_text' => 'Rice and beans', 'status' => LoveStatus::Resolved, 'resolved_name' => 'Rio de Janeiro']);
+    $maria->loves()->create(['raw_text' => 'Rice and beans', 'status' => LoveStatus::Resolved, 'resolved_name' => 'Rio de Janeiro', 'qloo_type' => 'location']);
     $as = fn () => $this->withCookie('roomtone_guest_JOIN01', (string) $maria->id);
 
     $as()->get('/e/JOIN01/me')->assertInertia(fn (Assert $page) => $page
         ->component('Guest')
         ->where('guest.loves', [
             // "as" only when the DJ read it as something else.
-            ['text' => 'Ozark', 'status' => 'resolved', 'as' => null],
-            ['text' => 'qxzv', 'status' => 'unresolved', 'as' => null],
-            ['text' => 'Lisbon', 'status' => 'pending', 'as' => null],
-            ['text' => 'Rice and beans', 'status' => 'resolved', 'as' => 'Rio de Janeiro'],
+            ['text' => 'Ozark', 'status' => 'resolved', 'as' => null, 'place' => false],
+            ['text' => 'qxzv', 'status' => 'unresolved', 'as' => null, 'place' => false],
+            ['text' => 'Lisbon', 'status' => 'pending', 'as' => null, 'place' => false],
+            ['text' => 'Rice and beans', 'status' => 'resolved', 'as' => 'Rio de Janeiro', 'place' => true],
         ])
         ->where('reading', true)
         ->where('song', null));
@@ -156,4 +156,44 @@ test('stage 1, set builds and host requests tell the room to refresh', function 
 
     Events::assertDispatchedTimes(RoomUpdated::class, 3);
     Events::assertDispatched(RoomUpdated::class, fn (RoomUpdated $e) => $e->code === 'JOIN01');
+});
+
+test('a guest can change their name and loves: only changed loves are read again, and the room hears about it', function () {
+    Queue::fake();
+    Events::fake([RoomUpdated::class]);
+    $maria = $this->event->guests()->create(['name' => 'Maria', 'color' => '#ffffff']);
+    $ozark = $maria->loves()->create(['raw_text' => 'Ozark', 'status' => LoveStatus::Resolved, 'resolved_name' => 'Ozark', 'pool' => [['id' => 'a', 'name' => 'A', 'songs' => [], 'rank' => 1]]]);
+    $rice = $maria->loves()->create(['raw_text' => 'Rice and beans', 'status' => LoveStatus::Resolved, 'resolved_name' => 'Rio de Janeiro', 'qloo_type' => 'location']);
+    $maria->loves()->create(['raw_text' => 'Lisbon', 'status' => LoveStatus::Resolved, 'resolved_name' => 'Lisbon']);
+
+    $this->withCookie('roomtone_guest_JOIN01', (string) $maria->id)
+        ->put('/e/JOIN01/me', ['name' => '  Maria P ', 'loves' => ['Ozark', ' Jollof   rice ', 'Lisbon']])
+        ->assertRedirect('/e/JOIN01/me');
+
+    expect($maria->fresh()->name)->toBe('Maria P')
+        ->and($ozark->fresh()->status)->toBe(LoveStatus::Resolved)
+        ->and($ozark->fresh()->pool)->not->toBeNull()
+        ->and($rice->fresh()->only(['raw_text', 'resolved_name', 'qloo_type', 'pool']))
+        ->toBe(['raw_text' => 'Jollof rice', 'resolved_name' => null, 'qloo_type' => null, 'pool' => null])
+        ->and($rice->fresh()->status)->toBe(LoveStatus::Pending);
+    Queue::assertPushed(ResolveGuest::class, fn (ResolveGuest $job) => $job->guest->is($maria));
+    Events::assertDispatched(RoomUpdated::class);
+});
+
+test('changing nothing reads nothing again; a stranger or a bad form changes nothing', function () {
+    Queue::fake();
+    $maria = $this->event->guests()->create(['name' => 'Maria', 'color' => '#ffffff']);
+    foreach (['Ozark', 'Rice', 'Lisbon'] as $text) {
+        $maria->loves()->create(['raw_text' => $text, 'status' => LoveStatus::Resolved]);
+    }
+    // A phone without the room's cookie (first: test cookies stick for later requests).
+    $this->put('/e/JOIN01/me', ['name' => 'X', 'loves' => ['a', 'b', 'c']])->assertRedirect('/e/JOIN01');
+
+    $as = fn () => $this->withCookie('roomtone_guest_JOIN01', (string) $maria->id);
+    $as()->put('/e/JOIN01/me', ['name' => 'Maria', 'loves' => ['Ozark', 'Rice', 'Lisbon']])->assertRedirect('/e/JOIN01/me');
+    Queue::assertNotPushed(ResolveGuest::class);
+
+    $as()->put('/e/JOIN01/me', ['name' => 'Maria', 'loves' => ['only one']])->assertSessionHasErrors('loves');
+
+    expect($maria->loves()->pluck('raw_text')->all())->toBe(['Ozark', 'Rice', 'Lisbon']);
 });

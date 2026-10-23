@@ -1,6 +1,9 @@
 import { Head, router } from '@inertiajs/react';
 import { useEchoPublic } from '@laravel/echo-react';
+import { useState } from 'react';
+import { GuestForm } from '@/guest/GuestForm';
 import { Starfield } from '@/room/Starfield';
+import { update as updateMe } from '@/routes/events/me';
 import '../../css/tokens.css';
 import '@/room/room.css';
 
@@ -13,6 +16,8 @@ type Props = {
             status: 'pending' | 'resolved' | 'unresolved';
             /** What the DJ read it as, when that differs from the text. */
             as: string | null;
+            /** Read as a place: that place's music stands in for it (a food read as its city). */
+            place: boolean;
         }[];
     };
     song: {
@@ -36,6 +41,51 @@ export default function Guest({ event, guest, song, reading }: Props) {
     useEchoPublic(`room.${event.code}`, 'RoomUpdated', () =>
         router.reload({ only: ['guest', 'song', 'reading'] }),
     );
+    const [editing, setEditing] = useState(false);
+
+    if (editing) {
+        return (
+            <>
+                <Head title={event.name} />
+                <main className="rt-room rt-guest">
+                    <div className="rt-space" aria-hidden="true">
+                        <Starfield />
+                    </div>
+                    <GuestForm
+                        initial={{
+                            name: guest.name,
+                            loves: guest.loves.map((love) => love.text),
+                        }}
+                        action={{
+                            url: updateMe.url(event.code),
+                            method: 'put',
+                        }}
+                        submit="Save"
+                        busy="Saving…"
+                        onSaved={() => setEditing(false)}
+                        after={
+                            <button
+                                type="button"
+                                className="rt-guest-change"
+                                onClick={() => setEditing(false)}
+                            >
+                                Cancel
+                            </button>
+                        }
+                    >
+                        <p className="rt-landing-mark">{event.name}</p>
+                        <h1 className="rt-guest-title">
+                            Change what you told the DJ.
+                        </h1>
+                        <p className="rt-guest-lede">
+                            Only what you change is read again. Your song
+                            follows when the set is rebuilt.
+                        </p>
+                    </GuestForm>
+                </main>
+            </>
+        );
+    }
 
     return (
         <>
@@ -56,12 +106,21 @@ export default function Guest({ event, guest, song, reading }: Props) {
                                 <span>{love.text}</span>
                                 <span className="rt-guest-love-status">
                                     {love.status === 'resolved' && love.as
-                                        ? `Got it: ${love.as}`
+                                        ? love.place
+                                            ? `Got it: music from ${love.as}`
+                                            : `Got it: ${love.as}`
                                         : STATUS[love.status]}
                                 </span>
                             </li>
                         ))}
                     </ul>
+                    <button
+                        type="button"
+                        className="rt-guest-change"
+                        onClick={() => setEditing(true)}
+                    >
+                        Change my name or loves
+                    </button>
 
                     {song ? (
                         <section className="rt-guest-song">
