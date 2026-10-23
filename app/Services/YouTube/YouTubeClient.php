@@ -20,6 +20,12 @@ class YouTubeClient
 {
     private const QUOTA_OUT = 'youtube:quota-out';
 
+    /** Whether searching is paused because the quota is used up (until midnight Pacific time, or a minute). */
+    public static function paused(): bool
+    {
+        return Cache::has(self::QUOTA_OUT);
+    }
+
     /**
      * Videos for a query, in YouTube's order. Only embeddable videos. No category filter: many artists' uploads are
      * not tagged Music. With no good match YouTube returns unrelated popular videos, so the caller must check them.
@@ -111,9 +117,21 @@ class YouTubeClient
      */
     public function playable(array $ids): array
     {
+        return array_values(array_intersect($ids, array_keys($this->inspect($ids))));
+    }
+
+    /**
+     * What a playable video is, for choosing between versions: its views and length. Only public, processed,
+     * embeddable videos are returned, keyed by id. One videos.list call (1 quota unit) per 50 ids.
+     *
+     * @param  list<string>  $ids
+     * @return array<string, array{views: int, seconds: int}>
+     */
+    public function inspect(array $ids): array
+    {
         $items = [];
         foreach (array_chunk(array_values(array_unique($ids)), 50) as $chunk) {
-            $items = [...$items, ...(array) ($this->get('videos', ['part' => 'status', 'id' => implode(',', $chunk)])['items'] ?? [])];
+            $items = [...$items, ...(array) ($this->get('videos', ['part' => 'status,statistics,contentDetails', 'id' => implode(',', $chunk)])['items'] ?? [])];
         }
 
         $ok = [];
@@ -127,11 +145,24 @@ class YouTubeClient
             if (($status['embeddable'] ?? false) === true
                 && ($status['privacyStatus'] ?? null) === 'public'
                 && ($status['uploadStatus'] ?? null) === 'processed') {
-                $ok[] = (string) $item['id'];
+                $ok[(string) $item['id']] = [
+                    'views' => (int) ($item['statistics']['viewCount'] ?? 0),
+                    'seconds' => self::seconds((string) ($item['contentDetails']['duration'] ?? '')),
+                ];
             }
         }
 
-        return array_values(array_intersect($ids, $ok));
+        return $ok;
+    }
+
+    /** ISO 8601 duration ("PT3M42S") in seconds; 0 when unreadable. */
+    private static function seconds(string $duration): int
+    {
+        if (! preg_match('/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/', $duration, $m)) {
+            return 0;
+        }
+
+        return (int) ($m[1] ?? 0) * 86400 + (int) ($m[2] ?? 0) * 3600 + (int) ($m[3] ?? 0) * 60 + (int) ($m[4] ?? 0);
     }
 
     /**

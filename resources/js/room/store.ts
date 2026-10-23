@@ -35,6 +35,8 @@ type RoomState = {
     reconnecting: boolean;
     stage: Stage;
     join: JoinInfo;
+    /** YouTube lookups are paused: new songs may have no video. */
+    youtubePaused: boolean;
     /** Host link key, or null on a view-only screen. */
     hostKey: string | null;
     latestRequest: HostRequestState | null;
@@ -43,6 +45,8 @@ type RoomState = {
     init: (props: HostRoomProps) => void;
     /** Fresh server props (after a request or a poll): the server owns the set when there is a host key. */
     syncFromServer: (props: HostRoomProps) => void;
+    /** Take the server's playing track and queue as they are (after the server refused a report). */
+    adoptServer: (props: HostRoomProps) => void;
     setAskOpen: (open: boolean) => void;
     addGuest: (guest: Guest) => void;
     nextTrack: () => void;
@@ -85,6 +89,7 @@ export const useRoom = create<RoomState>()((set) => ({
     muted: saved(MUTED_KEY) === '1',
     reconnecting: false,
     join: { url: '', host: '', qr: '' },
+    youtubePaused: false,
     hostKey: null,
     latestRequest: null,
     askOpen: false,
@@ -103,7 +108,18 @@ export const useRoom = create<RoomState>()((set) => ({
             energy: clampEnergy(props.event.energy),
             join: props.join,
             hostKey: props.hostKey,
+            youtubePaused: props.youtubePaused,
             latestRequest: props.latestRequest,
+        }),
+
+    adoptServer: (props) =>
+        set({
+            nowPlaying: props.nowPlaying,
+            queue: props.queue,
+            energy: props.nowPlaying
+                ? clampEnergy(props.nowPlaying.energy)
+                : clampEnergy(props.event.energy),
+            youtubePaused: props.youtubePaused,
         }),
 
     syncFromServer: (props) =>
@@ -127,6 +143,7 @@ export const useRoom = create<RoomState>()((set) => ({
                 guests: props.guests,
                 queue: props.queue.filter((item) => item.id !== nowPlaying?.id),
                 latestRequest: props.latestRequest,
+                youtubePaused: props.youtubePaused,
                 nowPlaying,
             };
         }),

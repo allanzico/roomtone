@@ -1,7 +1,9 @@
+import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { xsrfToken } from '@/lib/xsrf';
 import { end, nowPlaying, unavailable } from '@/routes/events';
 import { useRoom } from './store';
+import type { HostRoomProps } from './types';
 
 /**
  * With the host key, tell the server a track's video would not play (removed, private, not embeddable), so no
@@ -81,9 +83,25 @@ export function useHostSync(): void {
                         'X-XSRF-TOKEN': xsrfToken(),
                     },
                     body: JSON.stringify({ key: state.hostKey, item: item.id }),
-                }).catch(() => {
-                    // Offline for a moment: the next track change sends the state again.
-                });
+                })
+                    .then((response) => {
+                        // The server did not take it (the set was rebuilt under the screen, or the session ended):
+                        // follow the server's playing track, so the guests' pages and the screen agree.
+                        if (!response.ok) {
+                            router.reload({
+                                only: ['nowPlaying', 'queue', 'youtubePaused'],
+                                onSuccess: (page) =>
+                                    useRoom
+                                        .getState()
+                                        .adoptServer(
+                                            page.props as unknown as HostRoomProps,
+                                        ),
+                            });
+                        }
+                    })
+                    .catch(() => {
+                        // Offline for a moment: the next track change sends the state again.
+                    });
             }),
         [],
     );

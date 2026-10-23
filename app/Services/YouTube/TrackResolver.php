@@ -17,7 +17,16 @@ class TrackResolver
 
     /** Words that mark a different recording, unless the song title itself has them. */
     private const WRONG_VERSION = ['live', 'cover', 'remix', 'karaoke', 'sped up', 'slowed', 'reverb', 'nightcore', '8d',
-        'instrumental', 'mashup', 'reaction', 'tutorial', 'lesson', 'full album', 'playlist', 'medley', 'acoustic'];
+        'instrumental', 'mashup', 'reaction', 'tutorial', 'lesson', 'full album', 'playlist', 'medley', 'acoustic',
+        // Talent shows, TV and stage recordings: the song with a host talking over it, a jury, applause.
+        'the voice', 'blind audition', 'blind auditions', 'audition', 'auditions', 'x factor', 'idol', 'got talent',
+        'knockout', 'sing off', 'finale', 'episode', 'season', 'concert', 'festival', 'tiny desk', 'session', 'sessions',
+        'unplugged', 'rehearsal', 'soundcheck', 'interview', 'behind the scenes', 'making of', 'performs', 'snl'];
+
+    /** A song is between a minute and a quarter of an hour: shorter is a snippet, longer a mix or a whole album. */
+    private const MIN_SECONDS = 60;
+
+    private const MAX_SECONDS = 900;
 
     public function __construct(private YouTubeClient $youtube) {}
 
@@ -81,13 +90,16 @@ class TrackResolver
                 continue;
             }
 
-            $results = $this->youtube->searchMany(array_map(fn (Track $t) => "{$t->artist} {$t->title}", $search));
+            $results = $this->youtube->searchMany(array_map(fn (Track $t) => self::query($t->artist, $t->title), $search));
             $ranked = [];
             foreach ($search as $key => $track) {
                 $ranked[$key] = $results[$key] === null ? null : $this->ranked($results[$key], $track->artist, $track->title);
             }
 
-            $playable = $this->youtube->playable(array_merge(...array_values(array_filter($ranked, 'is_array'))));
+            $meta = $this->youtube->inspect(array_merge(...array_map(
+                fn (array $videos) => array_column($videos, 'id'),
+                array_filter($ranked, 'is_array'),
+            )));
 
             foreach ($search as $key => $track) {
                 // Could not search: not stored, so it is tried again later; kept for now without a video.
@@ -97,7 +109,7 @@ class TrackResolver
                     continue;
                 }
 
-                $track->youtube_video_id = array_values(array_intersect($ranked[$key], $playable))[0] ?? null;
+                $track->youtube_video_id = $this->best($ranked[$key], $meta, $track->artist, $track->title);
                 $track->youtube_checked_at = now();
                 $track->save();
 
@@ -112,22 +124,69 @@ class TrackResolver
 
     private function find(string $artist, string $title): ?string
     {
-        return $this->youtube->playable($this->ranked($this->youtube->search("{$artist} {$title}"), $artist, $title))[0] ?? null;
+        $videos = $this->ranked($this->youtube->search($this->query($artist, $title)), $artist, $title);
+
+        return $this->best($videos, $this->youtube->inspect(array_column($videos, 'id')), $artist, $title);
+    }
+
+    /** "official" steers YouTube towards the artist's own upload of the song. */
+    public static function query(string $artist, string $title): string
+    {
+        return "{$artist} {$title} official";
     }
 
     /**
-     * The ids of the videos that are this song, the artist's own uploads first ("- Topic" auto channels, VEVO, the
-     * artist's channel), then the rest in YouTube's order.
+     * The best playable version of the song: the artist's own channel (VEVO, their name) over an auto-generated
+     * "- Topic" upload over anyone else's, then "official" in the title, then the most watched. Most-watched breaks
+     * ties because for many songs the version everyone knows is the one everyone plays.
      *
      * @param  list<array{id: string, title: string, channel: string}>  $videos
-     * @return list<string>
+     * @param  array<string, array{views: int, seconds: int}>  $meta  From YouTubeClient::inspect(): playable videos only.
+     */
+    private function best(array $videos, array $meta, string $artist, string $title): ?string
+    {
+        // A length of 0 is unknown (YouTube gave none), not short.
+        $candidates = array_values(array_filter($videos, fn (array $video) => isset($meta[$video['id']])
+            && ($meta[$video['id']]['seconds'] === 0
+                || ($meta[$video['id']]['seconds'] >= self::MIN_SECONDS && $meta[$video['id']]['seconds'] <= self::MAX_SECONDS))));
+
+        usort($candidates, fn (array $a, array $b) => [$this->tier($b, $artist), $this->hasOfficial($b), $meta[$b['id']]['views']]
+            <=> [$this->tier($a, $artist), $this->hasOfficial($a), $meta[$a['id']]['views']]);
+
+        return $candidates[0]['id'] ?? null;
+    }
+
+    /**
+     * @param  array{id: string, title: string, channel: string}  $video
+     */
+    private function tier(array $video, string $artist): int
+    {
+        $channel = $this->plain($video['channel']);
+
+        return match (true) {
+            str_contains($channel, 'vevo') || $channel === $this->plain($artist) => 2,
+            str_ends_with($channel, ' topic') => 1,
+            default => 0,
+        };
+    }
+
+    /**
+     * @param  array{id: string, title: string, channel: string}  $video
+     */
+    private function hasOfficial(array $video): bool
+    {
+        return (bool) preg_match('/\bofficial\b/', $this->plain($video['title']));
+    }
+
+    /**
+     * The videos that are this song and not another recording of it (best() then picks one).
+     *
+     * @param  list<array{id: string, title: string, channel: string}>  $videos
+     * @return list<array{id: string, title: string, channel: string}>
      */
     private function ranked(array $videos, string $artist, string $title): array
     {
-        $candidates = array_values(array_filter($videos, fn (array $video) => $this->isTheSong($video, $artist, $title)));
-        usort($candidates, fn (array $a, array $b) => $this->isOfficial($b, $artist) <=> $this->isOfficial($a, $artist));
-
-        return array_column($candidates, 'id');
+        return array_values(array_filter($videos, fn (array $video) => $this->isTheSong($video, $artist, $title)));
     }
 
     /**
@@ -157,16 +216,6 @@ class TrackResolver
         }
 
         return true;
-    }
-
-    /**
-     * @param  array{id: string, title: string, channel: string}  $video
-     */
-    private function isOfficial(array $video, string $artist): bool
-    {
-        $channel = $this->plain($video['channel']);
-
-        return str_ends_with($channel, ' topic') || str_contains($channel, 'vevo') || $channel === $this->plain($artist);
     }
 
     /**

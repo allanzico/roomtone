@@ -1809,3 +1809,44 @@
         transition: none !important;
     }
 }
+
+/* ---------- Loading ---------- */
+
+.rt-loading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--rt-text-3);
+    font-size: var(--rt-fs-meta);
+}
+
+.rt-spinner {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--rt-line);
+    border-top-color: var(--rt-ember);
+    border-radius: 50%;
+    animation: rt-spin 0.9s linear infinite;
+}
+
+.rt-guest-love-status .rt-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 8px;
+    vertical-align: -1px;
+}
+
+@keyframes rt-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.rt-notice {
+    margin-top: 12px;
+    max-width: 560px;
+    color: var(--rt-text-3);
+    font-size: var(--rt-fs-meta);
+}

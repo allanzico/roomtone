@@ -96,6 +96,7 @@ export default function HostRoom(props: HostRoomProps) {
                     'clusters',
                     'guests',
                     'ended',
+                    'youtubePaused',
                 ],
             });
         },
@@ -113,6 +114,7 @@ export default function HostRoom(props: HostRoomProps) {
                 'clusters',
                 'guests',
                 'ended',
+                'youtubePaused',
             ],
         },
         { autoStart: false },

@@ -61,6 +61,8 @@ export type JoinInfo = {
 export type HostRoomProps = {
     /** The host ended the party: the screen stops and says so. */
     ended: boolean;
+    /** YouTube lookups are paused (daily quota): songs without a video can't play until it resets. */
+    youtubePaused: boolean;
     event: RoomEvent;
     join: JoinInfo;
     clusters: Cluster[];

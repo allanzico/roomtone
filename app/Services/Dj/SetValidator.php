@@ -10,11 +10,17 @@ use Closure;
  * what to fix, so the agent can retry from the message.
  *
  * @phpstan-type Pooled array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}
- * @phpstan-type Love array{id: int, guest_id: int, text: string, pool: list<Pooled>}
+ * @phpstan-type Love array{id: int, guest_id: int, text: string, pool: list<Pooled>, blend?: true}
  * @phpstan-type Accepted array{artist: string, title: string, qloo_artist_id: string, energy: int, bpm: int, for_guest_id: int, love_id: int, rank: int, reason: string, bridge: bool}
  */
 class SetValidator
 {
+    /**
+     * A guest's blend (Qloo's middle ground between all their loves) is offered to the agent as a love with this id
+     * plus the guest's id. It has no guest_loves row.
+     */
+    public const BLEND_BASE = 1_000_000;
+
     public readonly int $target;
 
     /** @var list<Accepted> */
@@ -135,6 +141,14 @@ class SetValidator
 
         if (count(array_filter($this->accepted, fn (array $t) => $t['for_guest_id'] === $forGuest)) >= $this->guestCap()) {
             return $this->reject('guest_cap', "Guest {$forGuest} already has {$this->guestCap()} tracks. Pick a track for someone else.");
+        }
+
+        // A guest with a blend gets their first track from it: the middle ground of their loves, not one love alone.
+        $blendId = self::BLEND_BASE + $love['guest_id'];
+
+        if ($forGuest === $love['guest_id'] && $loveId !== $blendId && isset($this->loves[$blendId])
+            && ! collect($this->accepted)->contains(fn (array $t) => $t['love_id'] === $blendId && $t['for_guest_id'] === $forGuest)) {
+            return $this->reject('blend_first', "{$loveGuest}'s first track must come from love {$blendId}, the middle ground of all their loves ({$this->loves[$blendId]['text']}).");
         }
 
         // Round the guest's loves: one love can't get another of their tracks while another of theirs has fewer.

@@ -5,6 +5,7 @@ use App\Models\Event;
 use App\Models\Track;
 use Database\Seeders\DemoPartySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -105,4 +106,11 @@ test('a host request\'s pick takes the island of the genre asked for, never its 
     // No island carries that genre: no genre (grey), not the guest's island.
     $request->update(['interpreted' => ['genre' => 'zzz', 'mood' => null, 'summary' => 'zzz', 'tags' => []]]);
     $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.clusterId', null));
+});
+
+test('the host screen is told when YouTube lookups are paused', function () {
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('youtubePaused', false));
+
+    Cache::put('youtube:quota-out', true, 60);
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('youtubePaused', true));
 });

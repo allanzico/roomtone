@@ -9,6 +9,7 @@ use App\Models\GuestLove;
 use App\Models\HostRequest;
 use App\Models\SetItem;
 use App\Models\TasteCluster;
+use App\Services\YouTube\YouTubeClient;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
@@ -57,6 +58,8 @@ class HostRoomController extends Controller
 
         return Inertia::render('HostRoom', [
             'ended' => $event->hasEnded(),
+            // Songs can't be looked up on YouTube right now: new tracks have no video until the quota resets.
+            'youtubePaused' => YouTubeClient::paused(),
             'event' => [
                 'code' => $event->code,
                 'name' => $event->name,
@@ -131,7 +134,10 @@ class HostRoomController extends Controller
             })?->id;
         }
 
-        $pool = $loves->get($item->reason_love_id)->pool ?? [];
+        // A blend track has no love row: its pool is its guest's blend.
+        $pool = $item->reason_love_id !== null
+            ? ($loves->get($item->reason_love_id)->pool ?? [])
+            : ($event->guests->firstWhere('id', $item->reason_guest_id)->blend['pool'] ?? []);
         $artist = collect($pool)->first(fn (array $a) => Str::lower($a['name']) === Str::lower($item->track->artist));
         // The reason guest's islands, strongest first.
         $theirs = ($event->guests->firstWhere('id', $item->reason_guest_id)->clusters ?? collect())

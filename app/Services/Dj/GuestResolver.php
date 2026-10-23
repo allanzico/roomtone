@@ -16,7 +16,9 @@ use Laravel\Ai\Responses\Data\TextUsage;
  * Stage 1 of the DJ agent, per guest: Qloo search for each love, one LovePicker call to choose what the guest
  * meant, then one Qloo insights call per resolved love (one signal, so a reason can name the love that truly
  * produced the artist). A pick Qloo rejects as a signal gets one retry with that candidate removed. The searches,
- * and then the insights calls, run at the same time (an insights call takes about 4 s).
+ * and then the insights calls, run at the same time (an insights call takes about 4 s). Last, one more call with
+ * every signal of the guest's loves together: Qloo's middle ground between them (the guest's `blend`), which is
+ * where the guest's first song comes from. A food is never turned into a city: it is left unread.
  */
 class GuestResolver
 {
@@ -27,7 +29,7 @@ class GuestResolver
     public const POOL_SIZE = 15;
 
     private const RETRY_NOTE = 'Your earlier choice for these loves was REJECTED by Qloo: it cannot be used as a taste signal. '
-        .'Choose a different candidate, or a location: the city most associated with it (a dish has a home city). Answer none only as a last resort.';
+        .'Choose a different candidate, or none. Never turn a food into a city.';
 
     /** Tokens spent by the LovePicker calls of the current resolve(). */
     private TextUsage $usage;
@@ -46,6 +48,57 @@ class GuestResolver
      * Resolve the guest's pending loves. Returns the tokens the model calls used.
      */
     public function resolve(Guest $guest): TextUsage
+    {
+        $usage = $this->resolveLoves($guest);
+        $this->blend($guest);
+
+        return $usage;
+    }
+
+    /**
+     * Qloo's artists for all the guest's signals at once: the entities of every resolved love, and one place as
+     * the location. Needs two or more signals; with one, that love's own pool is the middle ground.
+     */
+    private function blend(Guest $guest): void
+    {
+        $loves = $guest->loves()->where('status', LoveStatus::Resolved)->orderBy('id')->get();
+        $entities = $loves->whereNotNull('qloo_entity_id');
+        $place = $loves->firstWhere('qloo_type', 'location');
+        $signals = $entities->count() + ($place === null ? 0 : 1);
+
+        if ($signals < 2) {
+            $guest->update(['blend' => null]);
+
+            return;
+        }
+
+        try {
+            $artists = app(QlooClient::class)->artists($entities->pluck('qloo_entity_id')->all(), $place?->resolved_name, take: self::POOL_SIZE);
+        } catch (QlooException $e) {
+            if ($e->getCode() >= 400 && $e->getCode() < 500 && $e->getCode() !== 429) {
+                $guest->update(['blend' => null]);
+
+                return;
+            }
+
+            throw $e;
+        }
+
+        $used = $entities->push(...($place === null ? [] : [$place]))->sortBy('id')->values();
+        $guest->update(['blend' => $artists === [] ? null : [
+            'loves' => $used->pluck('id')->all(),
+            'text' => $used->map(fn (GuestLove $love) => self::clean($love->raw_text))->implode(' + '),
+            'pool' => array_map(fn (array $artist, int $i) => [
+                'id' => $artist['id'],
+                'name' => $artist['name'],
+                'songs' => $artist['songs'],
+                'genres' => $artist['genres'],
+                'rank' => $i + 1,
+            ], $artists, array_keys($artists)),
+        ]]);
+    }
+
+    private function resolveLoves(Guest $guest): TextUsage
     {
         $this->usage = new TextUsage;
         $loves = $guest->loves()->where('status', LoveStatus::Pending)->get()->values();

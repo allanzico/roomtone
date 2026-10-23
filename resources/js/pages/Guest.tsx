@@ -3,6 +3,7 @@ import { useEchoPublic } from '@laravel/echo-react';
 import { useState } from 'react';
 import { GuestForm } from '@/guest/GuestForm';
 import { PartyEnded } from '@/guest/PartyEnded';
+import { Loading } from '@/room/Loading';
 import { Starfield } from '@/room/Starfield';
 import { update as updateMe } from '@/routes/events/me';
 import '../../css/tokens.css';
@@ -34,7 +35,7 @@ type Props = {
 const STATUS = {
     pending: 'Reading…',
     resolved: 'Got it',
-    unresolved: "Couldn't read this one",
+    unresolved: 'No music link for this one, your other loves lead',
 } as const;
 
 /** The guest's page after joining: how the DJ read their loves, and their song once it is in the set. */
@@ -110,6 +111,12 @@ export default function Guest({ event, guest, song, reading }: Props) {
                             <li key={love.text} data-status={love.status}>
                                 <span>{love.text}</span>
                                 <span className="rt-guest-love-status">
+                                    {love.status === 'pending' && (
+                                        <span
+                                            className="rt-spinner"
+                                            aria-hidden="true"
+                                        />
+                                    )}
                                     {love.status === 'resolved' && love.as
                                         ? love.place
                                             ? `Got it: music from ${love.as}`
@@ -142,11 +149,11 @@ export default function Guest({ event, guest, song, reading }: Props) {
                             </p>
                         </section>
                     ) : (
-                        <p className="rt-guest-lede">
+                        <Loading>
                             {reading
                                 ? 'The DJ is reading your loves…'
                                 : 'The DJ is fitting you into the set. Your song shows up here.'}
-                        </p>
+                        </Loading>
                     )}
                 </div>
             </main>

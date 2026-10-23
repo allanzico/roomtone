@@ -79,6 +79,8 @@ class JoinController extends Controller
         $item = $event->setItems()->with('track')
             ->where('reason_guest_id', $guest->id)
             ->whereIn('status', [SetItemStatus::Playing, SetItemStatus::Queued])
+            // Their blend track (the middle ground of all their loves) is their song; then whichever comes first.
+            ->orderByRaw('(reason_love_id is null and host_request_id is null) desc')
             ->orderBy('position')->first();
         $playing = $event->setItems()->where('status', SetItemStatus::Playing)->value('position');
 

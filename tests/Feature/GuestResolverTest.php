@@ -174,3 +174,43 @@ test('resolved loves are not resolved again', function () {
     Http::assertNothingSent();
     LovePicker::assertNeverPrompted();
 });
+
+test('a guest\'s loves are also asked of Qloo together: the blend is their middle ground', function () {
+    $guest = guestWith(['Ozark', 'Lisbon', 'pork']);
+    fakeQloo([
+        'Ozark' => [hit('tv1', 'Ozark', 'tv_show')],
+        'Lisbon' => [hit('loc1', 'Lisbon', 'locality')],
+    ]);
+    LovePicker::fake([['picks' => [
+        ['love' => 1, 'use' => 'entity', 'id' => 'tv1', 'name' => null],
+        ['love' => 2, 'use' => 'entity', 'id' => 'loc1', 'name' => null],
+        ['love' => 3, 'use' => 'none', 'id' => null, 'name' => null],
+    ]]]);
+
+    app(GuestResolver::class)->resolve($guest);
+
+    $blend = $guest->fresh()->blend;
+    $ids = $guest->loves()->orderBy('id')->pluck('id')->all();
+
+    expect($blend['loves'])->toBe([$ids[0], $ids[1]])
+        ->and($blend['text'])->toBe('Ozark + Lisbon')
+        ->and($blend['pool'][0])->toBe(['id' => 'art1', 'name' => 'Brent Cobb', 'songs' => ['Down Home', 'Shine On Rainy Day'], 'genres' => ['Country'], 'rank' => 1]);
+    // One call with the show as the signal and the city as the location, both at once.
+    Http::assertSent(fn (Request $r) => str_contains($r->url(), 'insights')
+        && str_contains($r->url(), 'signal.interests.entities=tv1') && str_contains(urldecode($r->url()), 'signal.location.query=Lisbon'));
+});
+
+test('one signal makes no blend, and a food is never turned into a city', function () {
+    $guest = guestWith(['Ozark', 'pork']);
+    fakeQloo(['Ozark' => [hit('tv1', 'Ozark', 'tv_show')]]);
+    LovePicker::fake([['picks' => [
+        ['love' => 1, 'use' => 'entity', 'id' => 'tv1', 'name' => null],
+        ['love' => 2, 'use' => 'none', 'id' => null, 'name' => null],
+    ]]]);
+
+    app(GuestResolver::class)->resolve($guest);
+
+    expect($guest->fresh()->blend)->toBeNull()
+        ->and($guest->loves()->orderBy('id')->get()[1]->status)->toBe(LoveStatus::Unresolved);
+    expect((string) (new LovePicker)->instructions())->toContain('Never turn it into a city');
+});

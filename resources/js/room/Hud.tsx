@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { setup } from '@/routes';
 import { AskDj } from './AskDj';
+import { Loading } from './Loading';
 import { endParty } from './hostSync';
 import { clusterColor, guestColor, listOf, mixBar, mixOf } from './genres';
 import type { MixSegment } from './genres';
@@ -360,6 +361,8 @@ function titleAxes(energy: number): CSSProperties {
 function NowPlaying() {
     const item = useRoom((s) => s.nowPlaying);
     const guests = useRoom((s) => s.guests);
+    const playable = useRoom(hasVideo);
+    const paused = useRoom((s) => s.youtubePaused);
 
     // Keep the previous track on screen for its 300ms fade-out.
     const [shown, setShown] = useState(item);
@@ -404,6 +407,16 @@ function NowPlaying() {
                 </div>
             )}
             {item && <MixBar />}
+            {!item && guests.length > 0 && (
+                <Loading>The DJ is picking the first songs…</Loading>
+            )}
+            {item && !playable && (
+                <p className="rt-notice" role="status">
+                    {paused
+                        ? "YouTube's daily search limit is reached, so new songs can't be looked up until it resets. Songs already found still play."
+                        : 'No video was found for this song.'}
+                </p>
+            )}
         </section>
     );
 }
