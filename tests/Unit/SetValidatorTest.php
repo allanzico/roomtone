@@ -106,9 +106,22 @@ test('a reason also names another guest whose love ranks the artist in Qloo\'s t
     $v->add(djTrack(['artist' => 'Shared Act', 'title' => 'Hit']));
     expect($v->accepted()[0])->toMatchArray(['reason' => 'because Maria loves Ozark and Jake loves Dark', 'bridge' => true]);
 
-    // Tems is only in Maria's results.
+    // Tems is only in Maria's results (her Lisbon gets a track first: loves take turns).
+    $v->add(djTrack(['artist' => 'Mariza', 'title' => 'Hit', 'love' => 11]));
     $v->add(djTrack(['artist' => 'Tems', 'title' => 'Hit', 'love' => 10]));
-    expect($v->accepted()[1])->toMatchArray(['reason' => 'because Maria loves Ozark', 'bridge' => false]);
+    expect($v->accepted()[2])->toMatchArray(['reason' => 'because Maria loves Ozark', 'bridge' => false]);
+});
+
+test('a guest\'s loves take turns: one love gets a second track only after the others have one', function () {
+    $v = djValidator();
+
+    $v->add(djTrack(['artist' => 'Brent Cobb', 'love' => 10]));
+    $refused = $v->add(djTrack(['artist' => 'Tems', 'title' => 'Hit', 'love' => 10]));
+
+    expect($refused['error'])->toContain('Use their other loves first: love 11 (Lisbon)')
+        ->and($v->add(djTrack(['artist' => 'Mariza', 'title' => 'Hit', 'love' => 11]))['accepted'])->toBeTrue()
+        ->and($v->add(djTrack(['artist' => 'Tems', 'title' => 'Hit', 'love' => 10]))['accepted'])->toBeTrue()
+        ->and($v->log())->toBe(['ok', 'love_spread', 'ok', 'ok']);
 });
 
 test('a second guest beyond rank 5 is not named', function () {

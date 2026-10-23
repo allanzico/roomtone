@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import type { Stage } from './stage';
+import { reportUnavailable } from './hostSync';
 import { useRoom } from './store';
 import type { SetItem } from './types';
 import { ENDED, loadYouTube } from './youtube';
@@ -14,6 +15,9 @@ import type { YouTubePlayer } from './youtube';
 
 /** The live player, so the Start button can call playVideo() inside its click (the user gesture). */
 let current: YouTubePlayer | null = null;
+
+/** YouTube player errors that mean the video itself can't play here (bad id, removed or private, not embeddable). */
+const UNAVAILABLE = [2, 100, 101, 150];
 
 const MIN_WIDTH = 356;
 const DESIGN_WIDTH = 400;
@@ -169,8 +173,22 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
                                 useRoom.getState().nextTrack();
                             }
                         },
-                        // Removed, private or not embeddable: move on.
-                        onError: () => useRoom.getState().nextTrack(),
+                        // Removed, private or not embeddable: record it (host link) and move on at once.
+                        onError: (event) => {
+                            const room = useRoom.getState();
+
+                            if (
+                                room.nowPlaying &&
+                                UNAVAILABLE.includes(event.data)
+                            ) {
+                                reportUnavailable(
+                                    room.nowPlaying.id,
+                                    event.data,
+                                );
+                            }
+
+                            room.nextTrack();
+                        },
                         // The browser refused to play with sound: ask for the click again.
                         onAutoplayBlocked: () => useRoom.getState().stop(),
                     },
@@ -214,6 +232,17 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
 }
 
 /** Call from a click or tap handler: browsers only allow sound that starts inside a user gesture. */
+/** Opening the room was a click (the setup chat's button), so the browser lets it play with sound: start as soon
+ * as there is something to play, once. If the browser still refuses, the Start button comes back. */
+let autoStarted = false;
+
+export function autoStart(): void {
+    if (!autoStarted && navigator.userActivation?.hasBeenActive) {
+        autoStarted = true;
+        startPlayback();
+    }
+}
+
 export function startPlayback(): void {
     if (current) {
         applyVolume(current);
@@ -235,8 +264,8 @@ function applyVolume(player: YouTubePlayer): void {
     }
 }
 
-/** The volume control sits under the tile on a TV, left-aligned like YouTube's own (never over the video). */
-export function volumePosition(stage: Stage): CSSProperties {
+/** The TV's playback controls sit under the tile, left-aligned like YouTube's own (never over the video). */
+export function controlsPosition(stage: Stage): CSSProperties {
     const tile = tvVideoBox(stage);
 
     return {

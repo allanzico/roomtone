@@ -832,6 +832,19 @@
     background: rgb(237 237 242 / 0.1);
 }
 
+.rt-volume-mute:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+/* TV: play/pause, next and volume in one row under the video. */
+.rt-tv-controls {
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
 .rt-volume-slider {
     width: 96px;
     height: 20px;

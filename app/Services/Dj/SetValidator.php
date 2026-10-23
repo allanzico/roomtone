@@ -124,6 +124,7 @@ class SetValidator
             return $this->reject('typed_by_guest', "A guest typed {$match['name']} themselves. Pick a discovery instead.");
         }
 
+        $loveGuest = $this->guests[$love['guest_id']];
         $waiting = array_values(array_filter($this->unservedIds(), fn (int $id) => $id !== $forGuest));
         $free = $this->target - count($this->accepted) - 1;
 
@@ -134,6 +135,15 @@ class SetValidator
 
         if (count(array_filter($this->accepted, fn (array $t) => $t['for_guest_id'] === $forGuest)) >= $this->guestCap()) {
             return $this->reject('guest_cap', "Guest {$forGuest} already has {$this->guestCap()} tracks. Pick a track for someone else.");
+        }
+
+        // Round the guest's loves: one love can't get another of their tracks while another of theirs has fewer.
+        // Bridges (a track for another guest) don't count.
+        $behind = $forGuest === $love['guest_id'] ? $this->lovesBehind($loveId) : [];
+
+        if ($behind !== []) {
+            return $this->reject('love_spread', "{$loveGuest} already has a track from love {$loveId} ({$love['text']}). Use their "
+                .'other loves first: '.implode(', ', array_map(fn (array $l) => "love {$l['id']} ({$l['text']})", $behind)).'.');
         }
 
         if ($energy < 1 || $energy > 5 || $bpm < 40 || $bpm > 220) {
@@ -151,7 +161,6 @@ class SetValidator
             $song = $playable;
         }
 
-        $loveGuest = $this->guests[$love['guest_id']];
         // Name a second guest whose taste shares this artist: the one the agent chose, or another guest's love that
         // ranks it in Qloo's top 5. One extra name keeps the reason short enough for the screen.
         $shared = $bridgeLove ?? $this->sharedLove($match['name'], [$forGuest, $love['guest_id']]);
@@ -220,6 +229,23 @@ class SetValidator
         $served = array_column($this->accepted, 'for_guest_id');
 
         return array_values(array_diff($withPools, $served));
+    }
+
+    /**
+     * The same guest's other loves that have fewer of the guest's own tracks than this one, so this love must wait.
+     *
+     * @return list<Love>
+     */
+    private function lovesBehind(int $loveId): array
+    {
+        $owner = $this->loves[$loveId]['guest_id'];
+        $count = fn (int $id) => count(array_filter($this->accepted, fn (array $t) => $t['love_id'] === $id && $t['for_guest_id'] === $owner));
+        $mine = $count($loveId);
+
+        return array_values(array_filter(
+            $this->loves,
+            fn (array $other) => $other['guest_id'] === $owner && $other['id'] !== $loveId && $count($other['id']) < $mine,
+        ));
     }
 
     public function guestCap(): int

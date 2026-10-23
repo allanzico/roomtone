@@ -6,6 +6,7 @@ use App\Http\Controllers\HostRoomController;
 use App\Http\Controllers\JoinController;
 use App\Http\Controllers\NowPlayingController;
 use App\Http\Controllers\SetupController;
+use App\Http\Controllers\UnavailableVideoController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
@@ -21,6 +22,7 @@ Route::put('/e/{code}/me', [JoinController::class, 'update'])->middleware('throt
 Route::get('/e/{code}/host', HostRoomController::class)->name('events.host');
 Route::post('/e/{code}/requests', [HostRequestController::class, 'store'])->middleware('throttle:10,1')->name('events.requests.store');
 Route::post('/e/{code}/now-playing', NowPlayingController::class)->middleware('throttle:60,1')->name('events.now-playing');
+Route::post('/e/{code}/unavailable', UnavailableVideoController::class)->middleware('throttle:60,1')->name('events.unavailable');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');

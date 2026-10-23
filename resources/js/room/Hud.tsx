@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { setup } from '@/routes';
 import { AskDj } from './AskDj';
@@ -16,8 +16,9 @@ import {
     startPosition,
     videoRect,
     VideoTile,
+    autoStart,
+    controlsPosition,
     VolumeControl,
-    volumePosition,
 } from './VideoTile';
 
 /**
@@ -34,6 +35,13 @@ export function Hud({
     const stage = useRoom((s) => s.stage);
     const playable = useRoom(hasVideo);
     const started = useRoom((s) => s.started);
+
+    // Play as soon as the first song with a video arrives, when the browser allows it (see autoStart).
+    useEffect(() => {
+        if (playable && !started) {
+            autoStart();
+        }
+    }, [playable, started]);
 
     return (
         <>
@@ -54,7 +62,7 @@ export function Hud({
                 <StartParty style={startPosition(stage)} />
             )}
             {playable && started && stage.layout === 'tv' && (
-                <VolumeControl style={volumePosition(stage)} />
+                <TvControls style={controlsPosition(stage)} />
             )}
             <Arrivals />
         </>
@@ -637,7 +645,54 @@ function Arrivals() {
     );
 }
 
-/* ---------- Phone playback ---------- */
+/* ---------- Playback ---------- */
+
+/** TV: play/pause, next and volume under the video. */
+function TvControls({ style }: { style: CSSProperties }) {
+    const paused = useRoom((s) => s.paused);
+    const togglePaused = useRoom((s) => s.togglePaused);
+    const nextTrack = useRoom((s) => s.nextTrack);
+    const canSkip = useRoom((s) => s.queue.length > 0);
+
+    return (
+        <nav className="rt-tv-controls" style={style} aria-label="Playback">
+            <button
+                type="button"
+                className="rt-volume-mute"
+                aria-label={paused ? 'Play' : 'Pause'}
+                onClick={togglePaused}
+            >
+                {paused ? <PlayIcon /> : <PauseIcon />}
+            </button>
+            <button
+                type="button"
+                className="rt-volume-mute"
+                aria-label="Next track"
+                onClick={nextTrack}
+                disabled={!canSkip}
+            >
+                <NextIcon />
+            </button>
+            <VolumeControl />
+        </nav>
+    );
+}
+
+function NextIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M6 5l9 7-9 7z" fill="currentColor" />
+            <rect
+                x="16"
+                y="5"
+                width="2.5"
+                height="14"
+                rx="1"
+                fill="currentColor"
+            />
+        </svg>
+    );
+}
 
 function PlaybackBar() {
     const started = useRoom((s) => s.started);
