@@ -107,21 +107,29 @@ export const useRoom = create<RoomState>()((set) => ({
         }),
 
     syncFromServer: (props) =>
-        set((state) => ({
-            energy:
-                props.nowPlaying && state.nowPlaying?.id !== props.nowPlaying.id
-                    ? clampEnergy(props.nowPlaying.energy)
-                    : state.energy,
-            clusters: props.clusters,
-            guests: props.guests,
-            queue: props.queue,
-            latestRequest: props.latestRequest,
-            // Same track: keep the object so the player does not restart it.
-            nowPlaying:
-                state.nowPlaying?.id === props.nowPlaying?.id
-                    ? state.nowPlaying
-                    : props.nowPlaying,
-        })),
+        set((state) => {
+            // The host screen is where playback happens and it tells the server when it moves on, so a reload that
+            // lands before the server heard (or an older one) must not put the screen back on a track it already
+            // left. A view-only screen follows the server. Same track: the object stays, so the player does not
+            // restart it.
+            const keep =
+                state.nowPlaying !== null &&
+                (state.hostKey !== null ||
+                    state.nowPlaying.id === props.nowPlaying?.id);
+            const nowPlaying = keep ? state.nowPlaying : props.nowPlaying;
+
+            return {
+                energy:
+                    nowPlaying && nowPlaying.id !== state.nowPlaying?.id
+                        ? clampEnergy(nowPlaying.energy)
+                        : state.energy,
+                clusters: props.clusters,
+                guests: props.guests,
+                queue: props.queue.filter((item) => item.id !== nowPlaying?.id),
+                latestRequest: props.latestRequest,
+                nowPlaying,
+            };
+        }),
 
     setAskOpen: (askOpen) => set({ askOpen }),
 

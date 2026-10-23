@@ -6,6 +6,7 @@ use App\Enums\SetItemStatus;
 use App\Models\Event;
 use App\Models\Guest;
 use App\Models\GuestLove;
+use App\Models\HostRequest;
 use App\Models\SetItem;
 use App\Models\TasteCluster;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
@@ -48,7 +49,8 @@ class HostRoomController extends Controller
         }
 
         $loves = $event->guests->flatMap->loves->keyBy('id');
-        $item = fn (SetItem $item) => $this->setItem($item, $this->clusterOf($item, $event, $loves));
+        $requestGenres = $event->hostRequests()->get()->mapWithKeys(fn (HostRequest $r) => [$r->id => $r->interpreted['genre'] ?? null]);
+        $item = fn (SetItem $item) => $this->setItem($item, $this->clusterOf($item, $event, $loves, $requestGenres));
         $key = $request->query('key');
         $isHost = $event->isHostKey($key);
         $latest = $isHost ? $event->hostRequests()->latest('id')->first() : null;
@@ -114,9 +116,21 @@ class HostRoomController extends Controller
      * never labelled with a genre just because of who it is for.
      *
      * @param  Collection<int, GuestLove>  $loves
+     * @param  Collection<int, string|null>  $requestGenres  The genre each host request asked for, by request id
      */
-    private function clusterOf(SetItem $item, Event $event, Collection $loves): ?int
+    private function clusterOf(SetItem $item, Event $event, Collection $loves, Collection $requestGenres): ?int
     {
+        // A host request's pick comes from no love's pool, but it is in the genre the host asked for.
+        if ($item->host_request_id !== null) {
+            $asked = Str::lower((string) $requestGenres->get($item->host_request_id));
+
+            return $asked === '' ? null : $event->tasteClusters->first(function (TasteCluster $c) use ($asked) {
+                $label = Str::lower($c->label);
+
+                return $label === $asked || str_contains($label, $asked) || str_contains($asked, $label);
+            })?->id;
+        }
+
         $pool = $loves->get($item->reason_love_id)->pool ?? [];
         $artist = collect($pool)->first(fn (array $a) => Str::lower($a['name']) === Str::lower($item->track->artist));
         // The reason guest's islands, strongest first.

@@ -27,7 +27,7 @@ class GuestResolver
     public const POOL_SIZE = 15;
 
     private const RETRY_NOTE = 'Your earlier choice for these loves was REJECTED by Qloo: it cannot be used as a taste signal. '
-        .'Choose a different candidate, a location, or none.';
+        .'Choose a different candidate, or a location: the city most associated with it (a dish has a home city). Answer none only as a last resort.';
 
     /** Tokens spent by the LovePicker calls of the current resolve(). */
     private TextUsage $usage;
@@ -69,10 +69,13 @@ class GuestResolver
             return $this->usage;
         }
 
-        foreach ($rejected as $i => [$love, $pick]) {
+        // Drop the rejected candidate and every other of its type: a dish matches a dozen restaurants named after it,
+        // and picking the next one would be rejected the same way.
+        foreach ($rejected as [$love, $pick]) {
+            $type = collect($candidates[$love->id])->firstWhere('id', $pick['id'] ?? null)['type'] ?? null;
             $candidates[$love->id] = array_values(array_filter(
                 $candidates[$love->id],
-                fn (array $candidate) => $candidate['id'] !== ($pick['id'] ?? null),
+                fn (array $candidate) => $candidate['id'] !== ($pick['id'] ?? null) && ($type === null || $candidate['type'] !== $type),
             ));
         }
 

@@ -92,3 +92,17 @@ test('a track takes the island of its own artist\'s genres, not of the guest it 
 test('a track with no genre data falls back to its guest\'s island', function () {
     $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->whereNot('nowPlaying.clusterId', null));
 });
+
+test('a host request\'s pick takes the island of the genre asked for, never its guest\'s island', function () {
+    $event = Event::query()->where('code', 'DEMO')->first();
+    $item = $event->setItems()->where('status', SetItemStatus::Playing)->first();
+    $house = $event->tasteClusters()->first();
+    $request = $event->hostRequests()->create(['text' => 'more house', 'interpreted' => ['genre' => strtolower($house->label), 'mood' => null, 'summary' => 'house', 'tags' => []]]);
+    $item->update(['host_request_id' => $request->id, 'reason_love_id' => null]);
+
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.clusterId', $house->id));
+
+    // No island carries that genre: no genre (grey), not the guest's island.
+    $request->update(['interpreted' => ['genre' => 'zzz', 'mood' => null, 'summary' => 'zzz', 'tags' => []]]);
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.clusterId', null));
+});

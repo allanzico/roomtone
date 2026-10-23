@@ -112,9 +112,9 @@ test('guest text reaches the model only as labelled data, trimmed to 80 characte
     Http::assertSent(fn (Request $r) => str_contains($r->url(), '/search') && mb_strlen($r['query']) === 80);
 });
 
-test('a pick Qloo rejects gets one retry without that candidate', function () {
+test('a pick Qloo rejects gets one retry without that candidate or any of its type', function () {
     $guest = guestWith(['tacos']);
-    fakeQloo(['tacos' => [hit('shop1', 'Taco Shop', 'place'), hit('rest2', 'Taqueria', 'place')]], rejected: ['shop1']);
+    fakeQloo(['tacos' => [hit('shop1', 'Taco Shop', 'place'), hit('shop3', 'Tacos', 'place'), hit('rest2', 'Taqueria', 'brand')]], rejected: ['shop1']);
     LovePicker::fake([
         ['picks' => [['love' => 1, 'use' => 'entity', 'id' => 'shop1', 'name' => null]]],
         ['picks' => [['love' => 1, 'use' => 'entity', 'id' => 'rest2', 'name' => null]]],
@@ -125,7 +125,7 @@ test('a pick Qloo rejects gets one retry without that candidate', function () {
     expect($guest->loves()->sole()->status)->toBe(LoveStatus::Resolved)
         ->and($guest->loves()->sole()->qloo_entity_id)->toBe('rest2');
     LovePicker::assertPromptedTimes(2);
-    LovePicker::assertPrompted(fn (AgentPrompt $p) => $p->contains('REJECTED') && ! $p->contains('shop1') && $p->contains('rest2'));
+    LovePicker::assertPrompted(fn (AgentPrompt $p) => $p->contains('REJECTED') && ! $p->contains('shop1') && ! $p->contains('shop3') && $p->contains('rest2'));
 });
 
 test('a love Qloo rejects twice ends unresolved', function () {
