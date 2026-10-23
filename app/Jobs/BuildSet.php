@@ -34,6 +34,10 @@ class BuildSet implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
     public function handle(GuestClusterer $clusterer, SetBuilder $builder): void
     {
+        if ($this->event->hasEnded()) {
+            return;
+        }
+
         // Islands first, so the set and the islands the host screen shows come from the same guests.
         $clusterer->cluster($this->event);
         $result = $builder->build($this->event);

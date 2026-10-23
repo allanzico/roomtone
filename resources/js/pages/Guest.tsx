@@ -2,13 +2,14 @@ import { Head, router } from '@inertiajs/react';
 import { useEchoPublic } from '@laravel/echo-react';
 import { useState } from 'react';
 import { GuestForm } from '@/guest/GuestForm';
+import { PartyEnded } from '@/guest/PartyEnded';
 import { Starfield } from '@/room/Starfield';
 import { update as updateMe } from '@/routes/events/me';
 import '../../css/tokens.css';
 import '@/room/room.css';
 
 type Props = {
-    event: { code: string; name: string };
+    event: { code: string; name: string; ended: boolean };
     guest: {
         name: string;
         loves: {
@@ -39,9 +40,13 @@ const STATUS = {
 /** The guest's page after joining: how the DJ read their loves, and their song once it is in the set. */
 export default function Guest({ event, guest, song, reading }: Props) {
     useEchoPublic(`room.${event.code}`, 'RoomUpdated', () =>
-        router.reload({ only: ['guest', 'song', 'reading'] }),
+        router.reload({ only: ['event', 'guest', 'song', 'reading'] }),
     );
     const [editing, setEditing] = useState(false);
+
+    if (event.ended) {
+        return <PartyEnded name={event.name} />;
+    }
 
     if (editing) {
         return (

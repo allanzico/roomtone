@@ -38,6 +38,15 @@ class HostRoomController extends Controller
             ->get();
 
         $nowPlaying = $set->firstWhere('status', SetItemStatus::Playing);
+        // A track with no playable video never reaches the player's queue (it would sit "playing" with no sound and
+        // lock the controls) — unless nothing in the set has a video at all, when the screen only shows the set.
+        $queued = $set->where('status', SetItemStatus::Queued);
+        $playable = $queued->filter(fn (SetItem $item) => $item->track->youtube_video_id !== null);
+
+        if ($playable->isNotEmpty() || $nowPlaying?->track->youtube_video_id !== null) {
+            $queued = $playable;
+        }
+
         $loves = $event->guests->flatMap->loves->keyBy('id');
         $item = fn (SetItem $item) => $this->setItem($item, $this->clusterOf($item, $event, $loves));
         $key = $request->query('key');
@@ -45,6 +54,7 @@ class HostRoomController extends Controller
         $latest = $isHost ? $event->hostRequests()->latest('id')->first() : null;
 
         return Inertia::render('HostRoom', [
+            'ended' => $event->hasEnded(),
             'event' => [
                 'code' => $event->code,
                 'name' => $event->name,
@@ -69,7 +79,7 @@ class HostRoomController extends Controller
                 ])->values(),
             ])->values(),
             'nowPlaying' => $nowPlaying ? $item($nowPlaying) : null,
-            'queue' => $set->where('status', SetItemStatus::Queued)->map($item)->values(),
+            'queue' => $queued->map($item)->values(),
             // What guests scan: the join page, as a QR the server draws (no JavaScript QR library).
             'join' => $this->join($event->code),
             // Only for the host link: the key the screen sends back with requests and playback updates.

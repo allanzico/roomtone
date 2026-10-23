@@ -31,19 +31,20 @@ class JoinController extends Controller
     {
         $event = $this->event($code);
 
-        if ($this->guest($request, $event) !== null) {
+        if (! $event->hasEnded() && $this->guest($request, $event) !== null) {
             return redirect()->route('events.me', $event->code);
         }
 
-        return Inertia::render('Join', ['event' => ['code' => $event->code, 'name' => $event->name]]);
+        return Inertia::render('Join', ['event' => $this->summary($event)]);
     }
 
     public function store(JoinRoomRequest $request, string $code): RedirectResponse
     {
         $event = $this->event($code);
 
-        if ($this->guest($request, $event) !== null) {
-            return redirect()->route('events.me', $event->code);
+        // An ended party takes no one new (the join page says so).
+        if ($event->hasEnded() || $this->guest($request, $event) !== null) {
+            return redirect()->route($event->hasEnded() ? 'events.join' : 'events.me', $event->code);
         }
 
         $guest = $event->guests()->create(['name' => (string) $request->validated('name'), 'color' => '#ffffff']);
@@ -71,6 +72,10 @@ class JoinController extends Controller
             return redirect()->route('events.join', $event->code);
         }
 
+        if ($event->hasEnded()) {
+            return Inertia::render('Guest', ['event' => $this->summary($event), 'guest' => ['name' => $guest->name, 'loves' => []], 'song' => null, 'reading' => false]);
+        }
+
         $item = $event->setItems()->with('track')
             ->where('reason_guest_id', $guest->id)
             ->whereIn('status', [SetItemStatus::Playing, SetItemStatus::Queued])
@@ -78,7 +83,7 @@ class JoinController extends Controller
         $playing = $event->setItems()->where('status', SetItemStatus::Playing)->value('position');
 
         return Inertia::render('Guest', [
-            'event' => ['code' => $event->code, 'name' => $event->name],
+            'event' => $this->summary($event),
             'guest' => [
                 'name' => $guest->name,
                 'loves' => $guest->loves()->orderBy('id')->get()->map(fn (GuestLove $love) => [
@@ -113,8 +118,9 @@ class JoinController extends Controller
         $event = $this->event($code);
         $guest = $this->guest($request, $event);
 
-        if ($guest === null) {
-            return redirect()->route('events.join', $event->code);
+        // After the end nothing is read again: changing loves would cost Qloo calls for nobody.
+        if ($guest === null || $event->hasEnded()) {
+            return redirect()->route($guest === null ? 'events.join' : 'events.me', $event->code);
         }
 
         $guest->update(['name' => (string) $request->validated('name')]);
@@ -138,6 +144,14 @@ class JoinController extends Controller
         RoomUpdated::for($event);
 
         return redirect()->route('events.me', $event->code);
+    }
+
+    /**
+     * @return array{code: string, name: string, ended: bool}
+     */
+    private function summary(Event $event): array
+    {
+        return ['code' => $event->code, 'name' => $event->name, 'ended' => $event->hasEnded()];
     }
 
     private function event(string $code): Event

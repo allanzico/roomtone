@@ -30,6 +30,11 @@ class ResolveGuest implements ShouldQueue
 
     public function handle(GuestResolver $resolver): void
     {
+        // The party ended while this waited in the queue: no Qloo calls for it.
+        if ($this->guest->event->hasEnded()) {
+            return;
+        }
+
         $resolver->resolve($this->guest);
         RoomUpdated::for($this->guest->event);
 

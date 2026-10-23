@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { setup } from '@/routes';
 import { AskDj } from './AskDj';
+import { endParty } from './hostSync';
 import { clusterColor, guestColor, listOf, mixBar, mixOf } from './genres';
 import type { MixSegment } from './genres';
 import { reducedMotion } from './stage';
@@ -194,11 +195,17 @@ function Header() {
     );
 }
 
-/** Host link only: leave this room for the setup chat. The room and its guests' pages stay as they are. */
+/** Host link only: end the party (guests' pages say so and stop taking changes), then go to the setup chat. */
 function EndParty() {
-    const end = () => {
-        if (window.confirm('End this party and set up a new one?')) {
+    const end = async () => {
+        if (!window.confirm('End this party and set up a new one?')) {
+            return;
+        }
+
+        if (await endParty()) {
             router.visit(setup.url());
+        } else {
+            window.alert("Couldn't end the party. Try again.");
         }
     };
 

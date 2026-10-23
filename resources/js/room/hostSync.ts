@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { xsrfToken } from '@/lib/xsrf';
-import { nowPlaying, unavailable } from '@/routes/events';
+import { end, nowPlaying, unavailable } from '@/routes/events';
 import { useRoom } from './store';
 
 /**
@@ -26,6 +26,32 @@ export function reportUnavailable(item: number, error: number): void {
     }).catch(() => {
         // Offline: the track is skipped here either way.
     });
+}
+
+/** With the host key, end the party on the server, so guests can no longer join or change their loves. */
+export async function endParty(): Promise<boolean> {
+    const { hostKey, event } = useRoom.getState();
+
+    if (!hostKey) {
+        return false;
+    }
+
+    try {
+        const response = await fetch(end.url(event.code), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-XSRF-TOKEN': xsrfToken(),
+            },
+            body: JSON.stringify({ key: hostKey }),
+        });
+
+        return response.ok;
+    } catch {
+        return false;
+    }
 }
 
 /**

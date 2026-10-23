@@ -59,6 +59,8 @@ export type JoinInfo = {
 };
 
 export type HostRoomProps = {
+    /** The host ended the party: the screen stops and says so. */
+    ended: boolean;
     event: RoomEvent;
     join: JoinInfo;
     clusters: Cluster[];

@@ -19,10 +19,11 @@ use Illuminate\Support\Carbon;
  * @property array<mixed>|null $energy_plan Setup's {timeline, points, tz?, minutes?}, or an older list of clock points (see EnergyArc::plan)
  * @property string $host_token
  * @property bool $demo A visitor's copy of the demo party
+ * @property Carbon|null $ended_at When the host ended the party; nothing new is read or built after that
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['code', 'name', 'occasion', 'energy_plan', 'host_token', 'demo'])]
+#[Fillable(['code', 'name', 'occasion', 'energy_plan', 'host_token', 'demo', 'ended_at'])]
 #[Hidden(['host_token'])]
 class Event extends Model
 {
@@ -78,6 +79,11 @@ class Event extends Model
         return is_string($key) && $key !== '' && hash_equals($this->host_token, $key);
     }
 
+    public function hasEnded(): bool
+    {
+        return $this->ended_at !== null;
+    }
+
     /**
      * The energy the party starts at (1–5), from the first step of the host's plan.
      */
@@ -94,6 +100,7 @@ class Event extends Model
         return [
             'energy_plan' => 'array',
             'demo' => 'boolean',
+            'ended_at' => 'datetime',
         ];
     }
 }

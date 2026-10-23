@@ -1,14 +1,19 @@
 import { Head } from '@inertiajs/react';
 import { GuestForm } from '@/guest/GuestForm';
+import { PartyEnded } from '@/guest/PartyEnded';
 import { Starfield } from '@/room/Starfield';
 import { store as joinRoom } from '@/routes/events/guests';
 import '../../css/tokens.css';
 import '@/room/room.css';
 
-type Props = { event: { code: string; name: string } };
+type Props = { event: { code: string; name: string; ended: boolean } };
 
 /** The guest's phone: name and three loves. No app, no login. */
 export default function Join({ event }: Props) {
+    if (event.ended) {
+        return <PartyEnded name={event.name} />;
+    }
+
     return (
         <>
             <Head title={`Join ${event.name}`} />

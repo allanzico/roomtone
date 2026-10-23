@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DemoController;
+use App\Http\Controllers\EndPartyController;
 use App\Http\Controllers\HostRequestController;
 use App\Http\Controllers\HostRoomController;
 use App\Http\Controllers\JoinController;
@@ -22,6 +23,7 @@ Route::put('/e/{code}/me', [JoinController::class, 'update'])->middleware('throt
 Route::get('/e/{code}/host', HostRoomController::class)->name('events.host');
 Route::post('/e/{code}/requests', [HostRequestController::class, 'store'])->middleware('throttle:host-request')->name('events.requests.store');
 Route::post('/e/{code}/now-playing', NowPlayingController::class)->middleware('throttle:host-screen')->name('events.now-playing');
+Route::post('/e/{code}/end', EndPartyController::class)->middleware('throttle:host-screen')->name('events.end');
 Route::post('/e/{code}/unavailable', UnavailableVideoController::class)->middleware('throttle:host-screen')->name('events.unavailable');
 
 Route::middleware(['auth', 'verified'])->group(function () {
