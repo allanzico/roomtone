@@ -155,7 +155,7 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 - The curve keeps 2–6 points: tap the space between two points to add one; tap a point to select it, then its × (or Delete) removes it. The peak is marked only when one point is strictly highest, so a flat plan has none. Trip axis labels read "45 min", "1 h 15".
 - Setup's actions float in a bottom dock (`.rt-setup-dock`: quick replies, the plan with its button, the composer); the chat scrolls above it, padded by the dock's measured height (`--rt-dock-h`). `.rt-setup` undoes `.rt-room`'s fixed, clipped frame. The curve is capped at 20vh, keeping its proportions (`--rt-curve-ratio`) so dragging still maps correctly; under 820px tall the button's caption hides. After each reply the chat follows the DJ's newest line down to the dock.
 - Left out on purpose: "Clean versions only" and "Anything to avoid?" (nothing can enforce them; the DJ says so if asked) and the "Speaker + TV" fact.
-- Setup is open to anyone: turns are limited to 30 an hour and rooms to 10 an hour per IP.
+- Rate limits are named, one counter each (`AppServiceProvider::rateLimits`): setup turns 60/hour and rooms 20/hour per IP, demo copies 10/min per IP, joins 60/min and guest edits 20/min per room+IP (a party is often one Wi-Fi), host requests 10/min and host-screen reports 120/min per room. Never use a plain `throttle:N,M`: its counter is shared by every throttled route for an IP, so a playing host screen once used up the setup chat's allowance (a "429 Too Many Requests" page).
 
 ## Deploy (Phase 3)
 
