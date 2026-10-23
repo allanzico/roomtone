@@ -20,14 +20,70 @@ const FIRST_QUESTION = 'Hey. What are we playing for?';
 const LOST = 'I lost the thread. Say that again?';
 const MAX_LENGTH = 500;
 
-/** Quick starts: tapping one sends it as the host's message. */
-const STARTS = [
-    { text: 'A party', color: 'var(--rt-genre-1)' },
-    { text: 'A long drive', color: 'var(--rt-genre-3)' },
-    { text: 'A family road trip', color: 'var(--rt-genre-4)' },
-    { text: 'Dinner with friends', color: 'var(--rt-genre-2)' },
-    { text: 'Cooking at home', color: 'var(--rt-genre-5)' },
-    { text: 'A workout', color: 'var(--rt-genre-6)' },
+type Start = {
+    text: string;
+    color: string;
+    occasion: string;
+    timeline: Draft['timeline'];
+    /** The DJ's first question, answered here with no model call: the occasion is already known. */
+    reply: string;
+    choices: string[];
+};
+
+/** Quick starts: tapping one (or typing exactly its words) sends it as the host's message. */
+const STARTS: Start[] = [
+    {
+        text: 'A party',
+        color: 'var(--rt-genre-1)',
+        occasion: 'party',
+        timeline: 'clock',
+        reply: 'A party, nice. Roughly when does it start, and how late does it go?',
+        choices: ['8 pm till late', 'This afternoon', 'From 10 pm'],
+    },
+    {
+        text: 'A long drive',
+        color: 'var(--rt-genre-3)',
+        occasion: 'drive',
+        timeline: 'trip',
+        reply: 'A long drive, nice. Where are you driving, or roughly how long is it?',
+        choices: ['About an hour', '2 to 3 hours', 'Longer'],
+    },
+    {
+        text: 'A family road trip',
+        color: 'var(--rt-genre-4)',
+        occasion: 'road trip',
+        timeline: 'trip',
+        reply: 'A family road trip. Where are you headed, or roughly how long is it?',
+        choices: ['About an hour', '2 to 3 hours', 'Half a day'],
+    },
+    {
+        text: 'Dinner with friends',
+        color: 'var(--rt-genre-2)',
+        occasion: 'dinner',
+        timeline: 'clock',
+        reply: 'Dinner with friends, lovely. What time do people arrive?',
+        choices: ['7 pm', '8 pm', 'Later'],
+    },
+    {
+        text: 'Cooking at home',
+        color: 'var(--rt-genre-5)',
+        occasion: 'cooking',
+        timeline: 'clock',
+        reply: 'Cooking at home. When do you start, and for how long?',
+        choices: [
+            'Now, about an hour',
+            'Now, a couple of hours',
+            'This evening',
+        ],
+    },
+    {
+        text: 'A workout',
+        color: 'var(--rt-genre-6)',
+        occasion: 'workout',
+        timeline: 'clock',
+        reply: 'A workout. When, and for how long?',
+        choices: ['Now, 30 minutes', 'Now, 45 minutes', 'Now, an hour'],
+    },
 ];
 
 const OCCASIONS: Record<string, string> = {
@@ -135,6 +191,30 @@ export default function Setup() {
         const message = raw.trim().slice(0, MAX_LENGTH);
 
         if (message === '' || thinking) {
+            return;
+        }
+
+        // A quick start as the first message: its question is already written, so it answers at once.
+        const start =
+            messages.length === 0
+                ? STARTS.find(
+                      (s) => s.text.toLowerCase() === message.toLowerCase(),
+                  )
+                : undefined;
+
+        if (start) {
+            setMessages([
+                { from: 'host', text: start.text },
+                { from: 'dj', text: start.reply },
+            ]);
+            setDraft({
+                ...EMPTY,
+                occasion: start.occasion,
+                timeline: start.timeline,
+            });
+            setChoices(start.choices);
+            setText('');
+
             return;
         }
 

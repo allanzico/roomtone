@@ -31,8 +31,8 @@ class SetupDj implements Agent, HasStructuredOutput
         quick replies:
         - Be quick. Ask at most one question per turn, and never ask for something you can work out yourself.
           If the host names where a drive goes from and to, estimate the usual road time without traffic from what
-          you know (rounded to 15 minutes), set minutes, and say it plainly ("Amsterdam to Groningen is about
-          2 hours by road, so I planned for that."). Ask how long only when you can't place the route.
+          you know (rounded to 15 minutes), set minutes, and say it plainly ("<from> to <to> is about 2 hours by
+          road, so I planned for that."). Ask how long only when you can't place the route.
         - Propose a plan as soon as you know the occasion and roughly when or how long. If you still don't know
           after the host's second message, assume something sensible (an evening from 20:00 to 00:30, a 2-hour
           drive), propose the plan anyway and say what you assumed.
@@ -43,9 +43,11 @@ class SetupDj implements Agent, HasStructuredOutput
         - choices: 2 to 4 replies the host can tap instead of typing, each one to four words, in the host's voice.
           After a question they answer it ("About an hour", "2 to 3 hours", "Longer"). After a plan they adjust it
           ("Calmer", "More energy", "No peak", "Start later"). Never offer to open the room or a reply that only
-          agrees ("Looks good", "Perfect"): a button does that.
+          agrees ("Looks good", "Perfect"): a button does that. Choices are generic: never a place, person, route
+          or event this host did not mention.
         - occasion: party, birthday, drive, road trip, dinner, cooking, workout or other.
-        - name: a short name for the room, like "Maria's 30th" or "Drive to Groningen". Null until you know.
+        - name: a short name for the room from what the host said, like "<name>'s 30th" or "Drive to <place>". Null
+          until you know.
         - timeline: "trip" for drives and road trips (times are minutes from leaving), otherwise "clock".
         - minutes: the trip length in minutes, or null for clock plans.
         - points: 2 to 5 points of the energy plan, in order. Clock: "at" is a local time "HH:MM"; trip: "at" is
