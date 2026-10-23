@@ -15,6 +15,10 @@ It reads the same `.env` as `composer run dev` (see the README); `compose.yaml` 
 
 Plain `composer run dev` (no Docker) is still the everyday setup.
 
+### Make targets
+
+`make` lists them. `make rebuild` is the everyday full refresh without Docker: clears the config, route, view and event caches, the compiled files and the front end's build output, reinstalls PHP and JS dependencies as locked, rebuilds the front end (client and SSR), and migrates. `make deploy` runs the tests, then `make rebuild`, then builds the Docker image from scratch (`--no-cache`) and recreates the container, waiting until `/up` answers (`SKIP_TESTS=1 make deploy` skips the tests). The application cache is left alone on purpose: it holds every Qloo answer (they cost quota) and the YouTube quota flag; `make clear-app-cache` wipes it. Render still deploys on every push, not through `make`.
+
 ## On Render
 
 `render.yaml` is a Blueprint for one Docker web service with a 1 GB disk at `/var/roomtone`.
