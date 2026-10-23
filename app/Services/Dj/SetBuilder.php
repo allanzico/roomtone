@@ -32,6 +32,13 @@ class SetBuilder
     /** Songs shown per artist; add_track accepts any of the artist's notable songs. */
     private const SONGS_SHOWN = 3;
 
+    /** Where a build's time goes: YouTube lookups (inside add_track) and model round trips. */
+    private float $youtubeSeconds = 0.0;
+
+    private int $youtubeLookups = 0;
+
+    private int $rounds = 0;
+
     public function __construct(private TrackResolver $tracks) {}
 
     /** About 1.2 tracks per guest with results, between 10 and 40. */
@@ -41,11 +48,12 @@ class SetBuilder
     }
 
     /**
-     * @return array{tracks: int, target: int, unserved: list<int>, nudges: int, log: list<string>, usage: TextUsage|null, seconds: float}
+     * @return array{tracks: int, target: int, unserved: list<int>, nudges: int, log: list<string>, usage: TextUsage|null, seconds: float, youtube_seconds: float, youtube_lookups: int, model_rounds: int}
      */
     public function build(Event $event): array
     {
         $started = microtime(true);
+        [$this->youtubeSeconds, $this->youtubeLookups, $this->rounds] = [0.0, 0, 0];
         $guests = $event->guests()->orderBy('id')->pluck('name', 'id')->map(fn ($name) => (string) $name)->all();
         $allLoves = GuestLove::query()->whereIn('guest_id', array_keys($guests))->orderBy('id')->get();
 
@@ -59,7 +67,7 @@ class SetBuilder
         $guestsWithPools = count(array_unique(array_column($loves, 'guest_id')));
 
         if ($guestsWithPools === 0) {
-            return ['tracks' => 0, 'target' => 0, 'unserved' => [], 'nudges' => 0, 'log' => [], 'usage' => null, 'seconds' => 0.0];
+            return ['tracks' => 0, 'target' => 0, 'unserved' => [], 'nudges' => 0, 'log' => [], 'usage' => null, 'seconds' => 0.0, 'youtube_seconds' => 0.0, 'youtube_lookups' => 0, 'model_rounds' => 0];
         }
 
         // Kept: what has played, what is playing, and tracks a host request queued (they play first).
@@ -73,7 +81,7 @@ class SetBuilder
             typed: array_values($allLoves->map(fn (GuestLove $love) => GuestResolver::clean($love->raw_text))->all()),
             target: self::targetFor($guestsWithPools),
             usedArtists: array_values($kept->map(fn (SetItem $item) => $item->track->artist)->all()),
-            playableTitle: $this->playableTitle(...),
+            playableTitle: $this->knownTitle(...),
         );
 
         $prompt = $this->prompt($event, $guests, $loves, array_values($kept->map(fn (SetItem $item) => $item->track->artist)->unique()->all()), $validator->target);
@@ -85,7 +93,7 @@ class SetBuilder
             $usage = $usage->add($this->run($validator, $prompt."\n\n".$this->progress($validator, $guests), $event));
         }
 
-        $this->write($event, $validator->accepted(), $kept->isNotEmpty() && $kept->contains('status', SetItemStatus::Playing));
+        $this->write($event, $this->withVideos($validator->accepted(), $loves), $kept->isNotEmpty() && $kept->contains('status', SetItemStatus::Playing));
 
         return [
             'tracks' => count($validator->accepted()),
@@ -95,12 +103,16 @@ class SetBuilder
             'log' => $validator->log(),
             'usage' => $usage,
             'seconds' => round(microtime(true) - $started, 1),
+            'youtube_seconds' => round($this->youtubeSeconds, 1),
+            'youtube_lookups' => $this->youtubeLookups,
+            'model_rounds' => $this->rounds,
         ];
     }
 
     private function run(SetValidator $validator, string $prompt, Event $event): TextUsage
     {
         $response = DjAgent::make(validator: $validator)->prompt($prompt);
+        $this->rounds += $response->steps->count();
 
         // A response cut off at max tokens silently loses the tool calls in it.
         if ($response->steps->contains(fn (Step $step) => $step->finishReason === FinishReason::Length)) {
@@ -111,18 +123,61 @@ class SetBuilder
     }
 
     /**
-     * The add_track video check: the title with a playable video, the artist's next song, or null. When the
-     * YouTube search quota is used up, the track is accepted anyway and the host screen skips it if it has no video.
+     * The add_track video check, from stored lookups only so the agent never waits on YouTube: the first title not
+     * known to lack a video (unchecked titles pass; withVideos() looks them up), or null when every title is known
+     * to have none.
      *
      * @param  list<string>  $others
      */
-    private function playableTitle(string $artist, string $title, array $others): ?string
+    private function knownTitle(string $artist, string $title, array $others): ?string
     {
-        try {
-            return $this->tracks->resolve($artist, [$title, ...$others])?->title;
-        } catch (YouTubeException) {
-            return $title;
+        foreach (array_slice(array_values(array_unique([$title, ...$others])), 0, TrackResolver::MAX_TITLES) as $candidate) {
+            $track = Track::query()->where('artist', $artist)->where('title', $candidate)->first();
+
+            if ($track === null || $track->youtube_checked_at === null || $track->youtube_video_id !== null) {
+                return $candidate;
+            }
         }
+
+        return null;
+    }
+
+    /**
+     * Find every accepted track's video at once (TrackResolver::resolveMany): a title without one gives way to the
+     * artist's next song, and a track with neither is dropped. When the YouTube search quota is used up, the tracks
+     * stay without a video and the host screen skips them.
+     *
+     * @param  list<array{artist: string, title: string, qloo_artist_id: string, energy: int, bpm: int, for_guest_id: int, love_id: int, rank: int, reason: string, bridge: bool}>  $accepted
+     * @param  array<int, array{id: int, guest_id: int, text: string, pool: list<array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}>}>  $loves
+     * @return list<array{artist: string, title: string, qloo_artist_id: string, energy: int, bpm: int, for_guest_id: int, love_id: int, rank: int, reason: string, bridge: bool}>
+     */
+    private function withVideos(array $accepted, array $loves): array
+    {
+        $wanted = [];
+        foreach ($accepted as $i => $track) {
+            $songs = collect($loves[$track['love_id']]['pool'] ?? [])->firstWhere('name', $track['artist'])['songs'] ?? [];
+            $wanted[$i] = [$track['artist'], [$track['title'], ...array_values(array_diff($songs, [$track['title']]))]];
+        }
+
+        $started = microtime(true);
+        $this->youtubeLookups = count($wanted);
+
+        try {
+            $found = $this->tracks->resolveMany($wanted);
+        } catch (YouTubeException) {
+            return $accepted;
+        } finally {
+            $this->youtubeSeconds = microtime(true) - $started;
+        }
+
+        $kept = [];
+        foreach ($accepted as $i => $track) {
+            if ($found[$i] !== null) {
+                $kept[] = [...$track, 'title' => $found[$i]->title];
+            }
+        }
+
+        return $kept;
     }
 
     /**

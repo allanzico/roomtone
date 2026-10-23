@@ -45,18 +45,89 @@ class TrackResolver
         return null;
     }
 
+    /**
+     * Many tracks at once, for a whole set: each round searches every track still without a video side by side,
+     * then checks all candidates in one videos.list call; the second round tries each artist's next song. Same
+     * matching and storage as resolve(). Per key: the track (its video may be null when YouTube could not be asked),
+     * or null when none of its titles has a video.
+     *
+     * @param  array<int, array{0: string, 1: list<string>}>  $wanted  key => [artist, titles, picked title first]
+     * @return array<int, Track|null>
+     */
+    public function resolveMany(array $wanted): array
+    {
+        $titles = array_map(fn (array $w) => array_slice(array_values(array_unique($w[1])), 0, self::MAX_TITLES), $wanted);
+        $found = [];
+
+        for ($round = 0; $round < self::MAX_TITLES; $round++) {
+            $search = [];
+            foreach ($wanted as $key => [$artist]) {
+                $title = $titles[$key][$round] ?? null;
+
+                if (isset($found[$key]) || $title === null) {
+                    continue;
+                }
+
+                $track = Track::query()->firstOrNew(['artist' => $artist, 'title' => $title]);
+
+                if ($track->youtube_video_id !== null) {
+                    $found[$key] = $track;
+                } elseif ($track->youtube_checked_at === null) {
+                    $search[$key] = $track;
+                }
+            }
+
+            if ($search === []) {
+                continue;
+            }
+
+            $results = $this->youtube->searchMany(array_map(fn (Track $t) => "{$t->artist} {$t->title}", $search));
+            $ranked = [];
+            foreach ($search as $key => $track) {
+                $ranked[$key] = $results[$key] === null ? null : $this->ranked($results[$key], $track->artist, $track->title);
+            }
+
+            $playable = $this->youtube->playable(array_merge(...array_values(array_filter($ranked, 'is_array'))));
+
+            foreach ($search as $key => $track) {
+                // Could not search: not stored, so it is tried again later; kept for now without a video.
+                if ($ranked[$key] === null) {
+                    $found[$key] = $track;
+
+                    continue;
+                }
+
+                $track->youtube_video_id = array_values(array_intersect($ranked[$key], $playable))[0] ?? null;
+                $track->youtube_checked_at = now();
+                $track->save();
+
+                if ($track->youtube_video_id !== null) {
+                    $found[$key] = $track;
+                }
+            }
+        }
+
+        return array_map(fn (int $key) => $found[$key] ?? null, array_combine(array_keys($wanted), array_keys($wanted)));
+    }
+
     private function find(string $artist, string $title): ?string
     {
-        $candidates = array_values(array_filter(
-            $this->youtube->search("{$artist} {$title}"),
-            fn (array $video) => $this->isTheSong($video, $artist, $title),
-        ));
+        return $this->youtube->playable($this->ranked($this->youtube->search("{$artist} {$title}"), $artist, $title))[0] ?? null;
+    }
 
-        // The artist's own uploads first ("- Topic" auto channels, VEVO, the artist's channel), then the rest in
-        // YouTube's order.
+    /**
+     * The ids of the videos that are this song, the artist's own uploads first ("- Topic" auto channels, VEVO, the
+     * artist's channel), then the rest in YouTube's order.
+     *
+     * @param  list<array{id: string, title: string, channel: string}>  $videos
+     * @return list<string>
+     */
+    private function ranked(array $videos, string $artist, string $title): array
+    {
+        $candidates = array_values(array_filter($videos, fn (array $video) => $this->isTheSong($video, $artist, $title)));
         usort($candidates, fn (array $a, array $b) => $this->isOfficial($b, $artist) <=> $this->isOfficial($a, $artist));
 
-        return $this->youtube->playable(array_column($candidates, 'id'))[0] ?? null;
+        return array_column($candidates, 'id');
     }
 
     /**

@@ -3,6 +3,8 @@
 namespace App\Services\YouTube;
 
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -30,39 +32,96 @@ class YouTubeClient
             throw new YouTubeException('YouTube search is paused: the search quota is used up for now.');
         }
 
-        /** @var list<array<string, mixed>> $items */
-        $items = $this->get('search', [
-            'part' => 'snippet',
-            'q' => $query,
-            'type' => 'video',
-            'videoEmbeddable' => 'true',
-            'maxResults' => $max,
-        ])['items'] ?? [];
-
-        return array_values(array_map(fn (array $item) => [
-            'id' => (string) $item['id']['videoId'],
-            'title' => html_entity_decode((string) $item['snippet']['title'], ENT_QUOTES),
-            'channel' => html_entity_decode((string) $item['snippet']['channelTitle'], ENT_QUOTES),
-        ], array_filter($items, fn (array $item) => isset($item['id']['videoId']))));
+        return $this->videos((array) ($this->get('search', $this->searchParams($query, $max))['items'] ?? []));
     }
 
     /**
-     * The ids, of those given, that are public, processed and embeddable, in the order given.
+     * Several searches at once (each still counts against the 100 a day). A search that fails is null, so the
+     * caller can tell "no video" from "could not look".
+     *
+     * @param  array<int, string>  $queries
+     * @return array<int, list<array{id: string, title: string, channel: string}>|null>
+     */
+    public function searchMany(array $queries, int $max = 6): array
+    {
+        if (Cache::has(self::QUOTA_OUT)) {
+            throw new YouTubeException('YouTube search is paused: the search quota is used up for now.');
+        }
+
+        $key = $this->key();
+        $responses = Http::pool(fn (Pool $pool) => array_map(
+            fn (int $i, string $query) => $this->request($pool->as((string) $i))->get('search', [...$this->searchParams($query, $max), 'key' => $key]),
+            array_keys($queries),
+            $queries,
+        ));
+
+        $results = [];
+        foreach ($queries as $i => $query) {
+            $response = $responses[(string) $i] ?? null;
+
+            if (! $response instanceof Response || $response->failed()) {
+                if ($response instanceof Response) {
+                    $this->noteQuota('search', $response);
+                }
+
+                $results[$i] = null;
+
+                continue;
+            }
+
+            $results[$i] = $this->videos((array) ($response->json('items') ?? []));
+        }
+
+        return $results;
+    }
+
+    /**
+     * @return array<string, scalar>
+     */
+    private function searchParams(string $query, int $max): array
+    {
+        return ['part' => 'snippet', 'q' => $query, 'type' => 'video', 'videoEmbeddable' => 'true', 'maxResults' => $max];
+    }
+
+    /**
+     * @param  array<mixed>  $items
+     * @return list<array{id: string, title: string, channel: string}>
+     */
+    private function videos(array $items): array
+    {
+        $videos = [];
+        foreach ($items as $item) {
+            if (is_array($item) && isset($item['id']['videoId'])) {
+                $videos[] = [
+                    'id' => (string) $item['id']['videoId'],
+                    'title' => html_entity_decode((string) $item['snippet']['title'], ENT_QUOTES),
+                    'channel' => html_entity_decode((string) $item['snippet']['channelTitle'], ENT_QUOTES),
+                ];
+            }
+        }
+
+        return $videos;
+    }
+
+    /**
+     * The ids, of those given, that are public, processed and embeddable, in the order given. One call per 50 ids.
      *
      * @param  list<string>  $ids
      * @return list<string>
      */
     public function playable(array $ids): array
     {
-        if ($ids === []) {
-            return [];
+        $items = [];
+        foreach (array_chunk(array_values(array_unique($ids)), 50) as $chunk) {
+            $items = [...$items, ...(array) ($this->get('videos', ['part' => 'status', 'id' => implode(',', $chunk)])['items'] ?? [])];
         }
-
-        /** @var list<array<string, mixed>> $items */
-        $items = $this->get('videos', ['part' => 'status', 'id' => implode(',', array_slice($ids, 0, 50))])['items'] ?? [];
 
         $ok = [];
         foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
             $status = (array) ($item['status'] ?? []);
 
             if (($status['embeddable'] ?? false) === true
@@ -81,16 +140,10 @@ class YouTubeClient
      */
     private function get(string $method, array $params): array
     {
-        $key = config('services.youtube.key');
-
-        if (! is_string($key) || $key === '') {
-            throw new YouTubeException('YOUTUBE_API_KEY is not set.');
-        }
+        $key = $this->key();
 
         try {
-            $response = Http::baseUrl((string) config('services.youtube.url'))
-                ->acceptJson()
-                ->timeout(15)
+            $response = $this->request(Http::createPendingRequest())
                 ->retry(2, 500, fn ($e) => $e instanceof ConnectionException, throw: false)
                 ->get($method, [...$params, 'key' => $key]);
         } catch (ConnectionException $e) {
@@ -106,6 +159,22 @@ class YouTubeClient
         }
 
         return (array) $response->json();
+    }
+
+    private function key(): string
+    {
+        $key = config('services.youtube.key');
+
+        if (! is_string($key) || $key === '') {
+            throw new YouTubeException('YOUTUBE_API_KEY is not set.');
+        }
+
+        return $key;
+    }
+
+    private function request(PendingRequest $request): PendingRequest
+    {
+        return $request->baseUrl((string) config('services.youtube.url'))->acceptJson()->timeout(15);
     }
 
     /**

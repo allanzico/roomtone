@@ -161,7 +161,7 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
                         onReady: () => {
                             player = created;
                             current = created;
-                            created.setVolume(useRoom.getState().volume);
+                            applyVolume(created);
                             sync();
                         },
                         onStateChange: (event) => {
@@ -181,8 +181,11 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
             });
 
         const unsubscribe = useRoom.subscribe((state, prev) => {
-            if (state.volume !== prev.volume) {
-                player?.setVolume(state.volume);
+            if (
+                player &&
+                (state.volume !== prev.volume || state.muted !== prev.muted)
+            ) {
+                applyVolume(player);
             }
 
             if (
@@ -212,54 +215,103 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
 
 /** Call from a click or tap handler: browsers only allow sound that starts inside a user gesture. */
 export function startPlayback(): void {
-    current?.unMute();
+    if (current) {
+        applyVolume(current);
+    }
+
     current?.playVideo();
     useRoom.getState().start();
 }
 
-/** Volume down/up beside the player: above the tile's right edge on a TV (never over the video). */
+function applyVolume(player: YouTubePlayer): void {
+    const { volume, muted } = useRoom.getState();
+
+    player.setVolume(volume);
+
+    if (muted) {
+        player.mute();
+    } else {
+        player.unMute();
+    }
+}
+
+/** The volume control sits under the tile on a TV, left-aligned like YouTube's own (never over the video). */
 export function volumePosition(stage: Stage): CSSProperties {
     const tile = tvVideoBox(stage);
 
     return {
         position: 'fixed',
-        left: tile.left + tile.width,
-        top: tile.top - 12,
-        translate: '-100% -100%',
+        left: tile.left,
+        top: tile.top + tile.height + 8,
     };
 }
 
+/** Mute button and volume slider, like the YouTube player's. */
 export function VolumeControl({ style }: { style?: CSSProperties }) {
     const volume = useRoom((s) => s.volume);
+    const muted = useRoom((s) => s.muted);
     const setVolume = useRoom((s) => s.setVolume);
+    const toggleMute = useRoom((s) => s.toggleMute);
+    const level = muted ? 0 : volume;
 
     return (
-        <div
-            className="rt-volume"
-            style={style}
-            role="group"
-            aria-label="Volume"
-        >
+        <div className="rt-volume" style={style}>
             <button
                 type="button"
-                aria-label="Volume down"
-                onClick={() => setVolume(volume - 10)}
-                disabled={volume <= 0}
+                className="rt-volume-mute"
+                aria-label={muted ? 'Unmute' : 'Mute'}
+                onClick={toggleMute}
             >
-                <span aria-hidden="true">−</span>
+                <SpeakerIcon level={level} />
             </button>
-            <span className="rt-volume-level" aria-live="polite">
-                {volume === 0 ? 'Muted' : `${volume}%`}
-            </span>
-            <button
-                type="button"
-                aria-label="Volume up"
-                onClick={() => setVolume(volume + 10)}
-                disabled={volume >= 100}
-            >
-                <span aria-hidden="true">+</span>
-            </button>
+            <input
+                type="range"
+                className="rt-volume-slider"
+                min={0}
+                max={100}
+                step={5}
+                value={level}
+                aria-label="Volume"
+                aria-valuetext={muted ? 'Muted' : `${volume}%`}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                style={{ '--rt-volume': `${level}%` } as CSSProperties}
+            />
         </div>
+    );
+}
+
+function SpeakerIcon({ level }: { level: number }) {
+    return (
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
+            {level === 0 ? (
+                <path
+                    d="M16.5 9.5l5 5m0-5l-5 5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                />
+            ) : (
+                <>
+                    <path
+                        d="M16 9.2a4 4 0 0 1 0 5.6"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        fill="none"
+                    />
+                    {level > 50 && (
+                        <path
+                            d="M18.6 6.6a7.6 7.6 0 0 1 0 10.8"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            fill="none"
+                        />
+                    )}
+                </>
+            )}
+        </svg>
     );
 }
 

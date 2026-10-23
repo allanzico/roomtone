@@ -271,3 +271,41 @@ test('the resolve command reports how many tracks have a video', function () {
         ->expectsOutput('1 of 10 tracks have a video.')
         ->assertSuccessful();
 });
+
+test('a whole set is looked up at once: searches side by side, one playability check per round, fallbacks in a second round', function () {
+    fakeYouTube([
+        'Free Mind' => [video('tems', 'Tems - Free Mind', 'Tems - Topic')],
+        'Ghost Song' => [],
+        'Real Song' => [video('mariza', 'Mariza - Real Song', 'Mariza')],
+        'Nothing' => [],
+    ]);
+    Track::create(['artist' => 'Known', 'title' => 'Stored', 'youtube_video_id' => 'kept', 'youtube_checked_at' => now()]);
+
+    $found = app(TrackResolver::class)->resolveMany([
+        3 => ['Tems', ['Free Mind']],
+        5 => ['Mariza', ['Ghost Song', 'Real Song']],
+        7 => ['Nobody', ['Nothing']],
+        9 => ['Known', ['Stored']],
+    ]);
+
+    expect($found[3]->youtube_video_id)->toBe('tems')
+        ->and($found[5]->title)->toBe('Real Song')
+        ->and($found[5]->youtube_video_id)->toBe('mariza')
+        ->and($found[7])->toBeNull()
+        ->and($found[9]->youtube_video_id)->toBe('kept');
+
+    // Round 1: three searches and one check; round 2: Mariza's next song. The stored track is never searched.
+    expect(Http::recorded(fn (Request $r) => str_contains($r->url(), '/search')))->toHaveCount(4)
+        ->and(Http::recorded(fn (Request $r) => str_contains($r->url(), '/videos')))->toHaveCount(2)
+        ->and(Track::where('title', 'Nothing')->sole()->youtube_checked_at)->not->toBeNull();
+});
+
+test('in a set lookup, a search that fails keeps the track without a video and stores nothing', function () {
+    Http::fake(['yt.test/search*' => Http::response(['error' => ['message' => 'Backend Error']], 500)]);
+
+    $found = app(TrackResolver::class)->resolveMany([1 => ['Tems', ['Free Mind']]]);
+
+    expect($found[1]->title)->toBe('Free Mind')
+        ->and($found[1]->youtube_video_id)->toBeNull()
+        ->and(Track::count())->toBe(0);
+});

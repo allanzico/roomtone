@@ -8,6 +8,7 @@ export type YouTubePlayer = {
     pauseVideo(): void;
     loadVideoById(videoId: string): void;
     cueVideoById(videoId: string): void;
+    mute(): void;
     unMute(): void;
     /** 0–100. */
     setVolume(volume: number): void;

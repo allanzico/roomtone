@@ -1,5 +1,7 @@
+import { router } from '@inertiajs/react';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { setup } from '@/routes';
 import { AskDj } from './AskDj';
 import { clusterColor, guestColor, listOf, mixBar, mixOf } from './genres';
 import type { MixSegment } from './genres';
@@ -169,6 +171,7 @@ function Header() {
     const name = useRoom((s) => s.event.name);
     const reconnecting = useRoom((s) => s.reconnecting);
     const layout = useRoom((s) => s.stage.layout);
+    const host = useRoom((s) => s.hostKey !== null);
 
     return (
         <header className="rt-header">
@@ -176,9 +179,25 @@ function Header() {
                 <h1 className="rt-event-name">{name}</h1>
                 <GenreDots />
                 {layout === 'phone' && <InviteButton />}
+                {host && <EndParty />}
             </div>
             {reconnecting && <p className="rt-reconnecting">Reconnecting…</p>}
         </header>
+    );
+}
+
+/** Host link only: leave this room for the setup chat. The room and its guests' pages stay as they are. */
+function EndParty() {
+    const end = () => {
+        if (window.confirm('End this party and set up a new one?')) {
+            router.visit(setup.url());
+        }
+    };
+
+    return (
+        <button type="button" className="rt-end-party" onClick={end}>
+            End party
+        </button>
     );
 }
 

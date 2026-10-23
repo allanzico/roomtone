@@ -12,6 +12,7 @@ use App\Models\Track;
 use App\Services\Dj\GuestResolver;
 use App\Services\Dj\SetBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -190,4 +191,35 @@ test('the room\'s first set builds at once; later builds wait so guests joining 
     (new ResolveGuest($this->gran))->handle(app(GuestResolver::class));
     Queue::assertPushed(BuildSet::class, fn (BuildSet $job) => $job->event->is($this->event) && $job->delay !== null);
     expect((new BuildSet($this->event))->uniqueId())->toBe((string) $this->event->id);
+});
+
+test('videos are found after the agent picks: a track with none in its first two songs is dropped, a known miss is refused at once', function () {
+    // Mariza has no video for either song; Kate Bush's songs are already known to have none. A fresh HTTP factory:
+    // fakes stack, and the one from beforeEach would answer first.
+    Http::swap(new HttpFactory);
+    Http::fake(function (HttpRequest $request) {
+        if (str_contains($request->url(), 'yt.test/search')) {
+            return Http::response(['items' => str_contains($request['q'], 'Mariza') ? [] : [
+                ['id' => ['videoId' => 'v-'.md5($request['q'])], 'snippet' => ['title' => $request['q'], 'channelTitle' => 'x - Topic']],
+            ]]);
+        }
+
+        return Http::response(['items' => array_map(fn ($id) => ['id' => $id, 'status' => ['embeddable' => true, 'privacyStatus' => 'public', 'uploadStatus' => 'processed']], explode(',', $request['id']))]);
+    });
+    foreach (['Kate Bush Hit', 'Kate Bush B-side'] as $title) {
+        Track::create(['artist' => 'Kate Bush', 'title' => $title, 'youtube_checked_at' => now()]);
+    }
+
+    fakeDj($this, [[
+        ['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Ozark')],
+        ['artist' => 'Mariza', 'title' => 'Mariza Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Lisbon')],
+        ['artist' => 'Kate Bush', 'title' => 'Kate Bush Hit', 'for_guest' => $this->jake->id, 'love' => loveId($this->jake, 'Dark')],
+    ]]);
+
+    $result = app(SetBuilder::class)->build($this->event);
+
+    expect($result['log'])->toBe(['ok', 'ok', 'no_video'])
+        ->and($result['youtube_lookups'])->toBe(2)
+        ->and($this->event->setItems()->with('track')->get()->map(fn ($i) => $i->track->artist)->all())->toBe(['Brent Cobb'])
+        ->and(Track::where('artist', 'Mariza')->whereNotNull('youtube_checked_at')->count())->toBe(2);
 });

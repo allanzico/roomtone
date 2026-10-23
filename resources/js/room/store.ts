@@ -28,8 +28,9 @@ type RoomState = {
     started: boolean;
     /** Host pressed pause. */
     paused: boolean;
-    /** Player volume, 0–100 in steps of 10; remembered on this device. */
+    /** Player volume, 0–100, and mute; remembered on this device. */
     volume: number;
+    muted: boolean;
     /** Realtime connection dropped (Phase 2+). The last state stays on screen. */
     reconnecting: boolean;
     stage: Stage;
@@ -49,20 +50,25 @@ type RoomState = {
     setAudioLevel: (level: number) => void;
     togglePaused: () => void;
     setVolume: (volume: number) => void;
+    toggleMute: () => void;
     start: () => void;
     stop: () => void;
     setStage: (stage: Stage) => void;
 };
 
 const VOLUME_KEY = 'roomtone-volume';
+const MUTED_KEY = 'roomtone-muted';
+
+function saved(key: string): string | null {
+    return typeof window === 'undefined'
+        ? null
+        : window.localStorage.getItem(key);
+}
 
 function savedVolume(): number {
-    const saved =
-        typeof window === 'undefined'
-            ? null
-            : Number(window.localStorage.getItem(VOLUME_KEY) ?? NaN);
+    const volume = Number(saved(VOLUME_KEY) ?? NaN);
 
-    return saved !== null && saved >= 0 && saved <= 100 ? saved : 100;
+    return volume >= 0 && volume <= 100 ? volume : 100;
 }
 
 export const useRoom = create<RoomState>()((set) => ({
@@ -76,6 +82,7 @@ export const useRoom = create<RoomState>()((set) => ({
     started: false,
     paused: false,
     volume: savedVolume(),
+    muted: saved(MUTED_KEY) === '1',
     reconnecting: false,
     join: { url: '', host: '', qr: '' },
     hostKey: null,
@@ -152,11 +159,23 @@ export const useRoom = create<RoomState>()((set) => ({
     setAudioLevel: (audioLevel) => set({ audioLevel }),
 
     togglePaused: () => set((state) => ({ paused: !state.paused })),
+    // Like YouTube's slider: dragging to 0 mutes, moving it up unmutes.
     setVolume: (volume) => {
-        const next = Math.min(100, Math.max(0, Math.round(volume / 10) * 10));
+        const next = Math.min(100, Math.max(0, Math.round(volume)));
         window.localStorage.setItem(VOLUME_KEY, String(next));
-        set({ volume: next });
+        window.localStorage.setItem(MUTED_KEY, next === 0 ? '1' : '0');
+        set({ volume: next, muted: next === 0 });
     },
+    toggleMute: () =>
+        set((state) => {
+            // Unmuting from 0 brings the sound back at half.
+            const volume =
+                state.muted && state.volume === 0 ? 50 : state.volume;
+            window.localStorage.setItem(VOLUME_KEY, String(volume));
+            window.localStorage.setItem(MUTED_KEY, state.muted ? '0' : '1');
+
+            return { muted: !state.muted, volume };
+        }),
 
     start: () => set({ started: true, paused: false }),
 
