@@ -297,3 +297,21 @@ test('a song of an artist that already has a stored video is used, so no search 
     expect($this->event->setItems()->with('track')->get()->map(fn ($i) => $i->track->title)->all())->toBe(['Brent Cobb B-side']);
     Http::assertNotSent(fn ($r) => str_contains($r->url(), '/search'));
 });
+
+test('a guest whose blend gives nothing is served from their own loves after a few rounds', function () {
+    // The blend's only artist is already in the set for someone else, so it can never be placed.
+    $this->maria->update(['blend' => ['loves' => [], 'text' => 'Ozark + Lisbon', 'pool' => [
+        ['id' => 'q-Tems', 'name' => 'Tems', 'songs' => ['Tems Hit'], 'genres' => [], 'rank' => 1],
+    ]]]);
+    $blend = SetValidator::BLEND_BASE + $this->maria->id;
+    $ozark = loveId($this->maria, 'Ozark');
+    $jake = ['artist' => 'Tems', 'title' => 'Tems Hit', 'for_guest' => $this->jake->id, 'love' => loveId($this->jake, 'Dark')];
+    $own = ['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'for_guest' => $this->maria->id, 'love' => $ozark];
+
+    fakeDj($this, [[$jake, $own], [$own], [$own], [$own]]);
+    $result = app(SetBuilder::class)->build($this->event);
+
+    expect($result['unserved'])->toBe([])
+        ->and($this->event->setItems()->with('track')->get()->pluck('track.artist')->sort()->values()->all())->toBe(['Brent Cobb', 'Tems'])
+        ->and($result['log'])->toContain('blend_first');
+});

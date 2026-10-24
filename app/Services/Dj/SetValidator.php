@@ -209,6 +209,15 @@ class SetValidator
     }
 
     /**
+     * Stop requiring a guest's first track from their blend: when it has given nothing playable after several
+     * rounds, their own loves must be allowed to serve them.
+     */
+    public function dropBlend(int $guestId): void
+    {
+        unset($this->loves[self::BLEND_BASE + $guestId]);
+    }
+
+    /**
      * @return list<Accepted>
      */
     public function accepted(): array

@@ -43,7 +43,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 ## Phases
 
 1. Scaffold + 3D host room with fake data
-   1b. Host screen redesign (docs/design/handoff.md §3), fake data ← **current**
+   1b. Host screen redesign (docs/design/handoff.md §3), fake data
 2. Guest join (QR + 3-field form) + Reverb live orb landing
 3. Deploy (Docker + Caddy HTTPS) + Qloo service with caching
 4. YouTube resolve (cached) + IFrame player
@@ -52,7 +52,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 7. Demo party mode + energy arc + setup chat (handoff §4)
 8. Guest phone polish + mic audio reactivity
 9. Hardening
-10. README, license, submission
+10. README, license, submission ← **current** (phases 1–9 are built; see docs/FINAL-SWEEP.md for the last pass)
 
 ## Design
 
@@ -106,7 +106,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - Never commit Qloo response data (Qloo terms): no fixtures or seeds built from real responses. Tests use `Http::fake`.
 - `/search` is lexical and mixed-type, and ignores `limit`. It is a list of candidates for the agent to choose from, never an answer: "Alfama" gives Alfamart, "jollof rice" gives Damien Rice.
 - Cities (locality/destination) are rejected as signals (400). Pass the city name as `location` instead. Food/dish tags as artist signals are silently ignored; a restaurant entity works as a loose bridge.
-- Pooling every guest into one insights call gives a mush skewed to the biggest group. Call per guest and let the agent balance the set.
+- Pooling every guest into one insights call gives a mush skewed to the biggest group. Call per guest (all of one guest's loves together is fine: the blend) and let the agent balance the set.
 - Steer with `QlooClient::MOODS` (`style:qloo:calm` / `energetic`) and genre tags from `tags()`. Do not use `genre:music:{upbeat,danceable,chill}`.
 - Artists carry `notable_songs` and tags but no BPM, energy or per-result reason. Those come from the agent.
 - Insights calls take about 3.5–4.5s cold, so call them from queue jobs, not requests.
@@ -135,7 +135,7 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 - Host link: `/e/{code}/host?key={host_token}` (`roomtone:party` prints the code; the key is `events.host_token`). Without the key the screen is view-only. With it: the "Ask the DJ" composer (phone: above the playback bar; TV: press / or click the hint), and the screen reports every track change (`POST /e/{code}/now-playing`) so the server's set is the truth for rebuilds and requests.
 - Requests: `POST /e/{code}/requests` → `SteerSet` job → `Services/Dj/RequestSteerer`: `Ai/Agents/RequestReader` reads genre/mood/summary (genre via `QlooClient::tags()`, first `urn:tag:genre:music:*`; moods via `QlooClient::MOODS`), one Qloo insights call per guest with all their signals plus the tags as a filter, then `Ai/Agents/RequestDj` picks one track per guest (up to 8) through `RequestValidator`. Picks go right after the playing track (`set_items.host_request_id`), survive set rebuilds, and the newest request replaces an older one's queued picks. Requests with no genre or mood change nothing and say so.
 - While a request is pending the host screen polls every 3s (Inertia `usePoll`); Reverb will replace this.
-- YouTube's daily search quota answers HTTP 429 with a per-day `quota_limit` detail, not only 403 `quotaExceeded`; `YouTubeClient::noteQuota` handles both. When it is out, tracks are accepted without a video and the player skips them.
+- YouTube's daily search quota answers HTTP 429 with a per-day `quota_limit` detail, not only 403 `quotaExceeded`; `YouTubeClient::noteQuota` handles both. When it is out, `SetBuilder` keeps only tracks that can play (see the quota note above).
 
 ## Demo party and energy arc (Phase 7)
 
@@ -147,7 +147,7 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 ## Guest join and realtime (Phase 2, built after Phase 7)
 
 - Guests: `/e/{code}` (join: name ≤ 40, exactly three loves ≤ 80, trimmed) → `POST /e/{code}/guests` → `/e/{code}/me` (how each love was read, then their song and how far away it is). A cookie `roomtone_guest_{CODE}` (48 h) remembers the phone; a returning phone goes to its page instead of joining twice. Demo copies can be joined.
-- On their page a guest can change their name and loves (`PUT /e/{code}/me`, same `GuestForm` as joining): changed loves are reset to pending in place (ids kept, so played tracks keep their reasons), `ResolveGuest` runs again and the set rebuilds as usual. A love read as a place shows "Got it: music from Rio de Janeiro" (`place`), since a food is bridged to its city's music.
+- On their page a guest can change their name and loves (`PUT /e/{code}/me`, same `GuestForm` as joining): changed loves are reset to pending in place (ids kept, so played tracks keep their reasons), `ResolveGuest` runs again and the set rebuilds as usual. A love read as a real place shows "Got it: music from Lisbon" (`place`); a food is left unresolved, never bridged to a city.
 - The host screen's QR is an SVG of the join link drawn server-side with `bacon/bacon-qr-code` (already installed via Fortify). No JS QR library.
 - Realtime is Laravel Reverb (`php artisan dev` starts it on :8080; deploy must run `php artisan reverb:start` and proxy websockets). Public channel `room.{CODE}`: `GuestJoined` (the guest, so the point lands at once) and `RoomUpdated` (empty: screens reload their props) after stage 1, set builds and host requests. Tests broadcast to the `null` driver.
 - Reverb needs `guzzlehttp/psr7` ^2, so Guzzle is 7.x (not 8). `@babel/core` is pinned as a dev dependency: adding the Echo packages made npm drop it as an auto-installed peer and broke the Vite build.
@@ -167,7 +167,7 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 
 ## Deploy (Phase 3)
 
-- Hosting is **Render** (`render.yaml`: one Docker web service, `starter` plan, a 1 GB disk at `/var/roomtone`), with `roomtone.stackyard.io` through Cloudflare. Render serves HTTPS; the container speaks plain HTTP on `$PORT` (80 by default). Locally: `compose.yaml`, which reads the same `.env` as `composer run dev` and overrides what differs inside Docker (URL, database path, Reverb address, logs, SSR); http://localhost. Guide: `docs/DEPLOY.md`. Keep it this simple: no own TLS, no prod compose, no deploy script.
+- Hosting is **Render** (`render.yaml`: one Docker web service, `starter` plan, a 1 GB disk at `/var/roomtone`), with `roomtone.stackyard.io` through Cloudflare. Render serves HTTPS; the container speaks plain HTTP on `$PORT` (80 by default). Locally: `compose.yaml`, which reads the same `.env` as `composer run dev` and overrides what differs inside Docker (URL, database path, Reverb address, logs, SSR); http://localhost. Guide: `docs/DEPLOY.md`. Keep it this simple: no own TLS, no prod compose; `make deploy` only wraps the local Docker rebuild (Render deploys on push).
 - One container on purpose: SQLite is on one disk and a Render disk belongs to one service. `docker/start.sh` caches config, migrates (Render's pre-deploy command can't see the disk), keeps `queue:work`, `reverb:start` (127.0.0.1:8080) and `schedule:work` running in restart loops, then execs FrankenPHP. `docker/Caddyfile` proxies `/app/*` to Reverb; Reverb's `/apps` publish API stays internal.
 - `Makefile` (`make` lists the targets): `make rebuild` clears framework caches (not the app cache, which holds the Qloo answers and the YouTube quota flag: `make clear-app-cache`), reinstalls dependencies, rebuilds the front end and migrates; `make deploy` = tests + rebuild + `docker compose build --no-cache` + recreate and wait for `/up`.
 - Image: `dunglas/frankenphp:1-php8.4-alpine`, runs as root (the default). The build stage has PHP and Node (Vite runs Wayfinder's `php artisan`) and is never shipped. About 90 MB compressed.

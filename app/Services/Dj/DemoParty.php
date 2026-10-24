@@ -84,6 +84,10 @@ class DemoParty
                     $loves[$love->id] = $copy->loves()->create($love->only(['raw_text', 'qloo_entity_id', 'qloo_type', 'resolved_name', 'status', 'pool']))->id;
                 }
 
+                if ($guest->blend !== null) {
+                    $copy->update(['blend' => [...$guest->blend, 'loves' => array_values(array_filter(array_map(fn (int $id) => $loves[$id] ?? null, $guest->blend['loves'])))]]);
+                }
+
                 $copy->clusters()->sync($guest->clusters->mapWithKeys(fn (TasteCluster $c) => [
                     $clusters[$c->id] => ['weight' => $c->getRelationValue('pivot')->weight],
                 ])->all());

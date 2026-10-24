@@ -15,6 +15,7 @@ beforeEach(function () {
     $this->seed(DemoPartySeeder::class);
     $this->template = Event::where('code', 'DEMO')->sole();
     // The template's guests have readable loves with stored pools, like a built demo.
+    $this->template->guests()->where('name', 'Maria')->sole()->update(['blend' => ['loves' => [$this->template->guests()->where('name', 'Maria')->sole()->loves()->orderBy('id')->first()->id], 'text' => 'Ozark', 'pool' => []]]);
     GuestLove::query()->update(['status' => 'resolved', 'pool' => [['id' => 'q1', 'name' => 'Tems', 'songs' => ['Free Mind'], 'rank' => 1]]]);
 });
 
@@ -35,6 +36,7 @@ test('a visitor gets their own copy of the demo, made without any outside call',
 
     // Islands and reasons point at the copy's own guests and loves.
     $maria = $copy->guests()->where('name', 'Maria')->sole();
+    expect($maria->blend)->toBe(['loves' => [$maria->loves()->orderBy('id')->first()->id], 'text' => 'Ozark', 'pool' => []]);
     expect($maria->clusters()->pluck('event_id')->unique()->all())->toBe([$copy->id]);
 
     $items = $copy->setItems()->orderBy('position')->get();

@@ -14,7 +14,7 @@ use Illuminate\Support\Carbon;
  * @property int $event_id
  * @property string $name
  * @property string $color
- * @property array{loves: list<int>, text: string, pool: list<array<string, mixed>>}|null $blend Qloo's middle ground between all the guest's loves
+ * @property array{loves: list<int>, text: string, pool: list<array{id: string, name: string, songs: list<string>, genres: list<string>, rank: int}>}|null $blend Qloo's middle ground between all the guest's loves
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */

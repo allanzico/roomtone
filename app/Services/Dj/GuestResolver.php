@@ -73,7 +73,7 @@ class GuestResolver
         }
 
         try {
-            $artists = app(QlooClient::class)->artists($entities->pluck('qloo_entity_id')->all(), $place?->resolved_name, take: self::POOL_SIZE);
+            $artists = app(QlooClient::class)->artists(array_values($entities->map(fn (GuestLove $love) => (string) $love->qloo_entity_id)->all()), $place?->resolved_name, take: self::POOL_SIZE);
         } catch (QlooException $e) {
             if ($e->getCode() >= 400 && $e->getCode() < 500 && $e->getCode() !== 429) {
                 $guest->update(['blend' => null]);

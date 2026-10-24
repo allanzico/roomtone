@@ -102,6 +102,15 @@ class SetBuilder
         $nudges = 0;
         while (! $validator->complete() && $nudges < self::MAX_NUDGES) {
             $nudges++;
+
+            // A guest whose blend still has no track after two rounds (its artists are taken or have no video)
+            // must not stay unserved: their own loves may serve them instead.
+            if ($nudges > 2) {
+                foreach ($validator->unservedIds() as $guestId) {
+                    $validator->dropBlend($guestId);
+                }
+            }
+
             $usage = $usage->add($this->run($validator, $prompt."\n\n".$this->progress($validator, $guests), $event));
         }
 
@@ -170,7 +179,7 @@ class SetBuilder
      * stay without a video and the host screen skips them.
      *
      * @param  list<array{artist: string, title: string, qloo_artist_id: string, energy: int, bpm: int, for_guest_id: int, love_id: int, rank: int, reason: string, bridge: bool}>  $accepted
-     * @param  array<int, array{id: int, guest_id: int, text: string, pool: list<array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}>}>  $loves
+     * @param  array<int, array{id: int, guest_id: int, text: string, pool: list<array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}>, blend?: true}>  $loves
      * @return list<array{artist: string, title: string, qloo_artist_id: string, energy: int, bpm: int, for_guest_id: int, love_id: int, rank: int, reason: string, bridge: bool}>
      */
     private function withVideos(array $accepted, array $loves): array
@@ -220,7 +229,7 @@ class SetBuilder
 
     /**
      * @param  array<int, string>  $guests
-     * @param  array<int, array{id: int, guest_id: int, text: string, pool: list<array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}>}>  $loves
+     * @param  array<int, array{id: int, guest_id: int, text: string, pool: list<array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}>, blend?: true}>  $loves
      * @param  list<string>  $played
      */
     private function prompt(Event $event, array $guests, array $loves, array $played, int $target, int $kept): string
@@ -234,7 +243,7 @@ class SetBuilder
         foreach ($loves as $love) {
             // Rank labels stay, but the order shuffles per room and per rebuild, so the first names listed are not
             // the same every time. A seed keeps one build repeatable.
-            $pool = collect($love['pool'])->shuffle(crc32($event->code.'|'.$kept.'|'.$love['id']))->all();
+            $pool = collect($love['pool'])->sortBy(fn (array $a) => crc32($event->code.'|'.$kept.'|'.$love['id'].'|'.$a['id']))->values()->all();
             $artists = array_map(
                 fn (array $a) => "{$a['rank']}. {$a['name']} (".implode('; ', array_slice($a['songs'], 0, self::SONGS_SHOWN)).')',
                 $pool,

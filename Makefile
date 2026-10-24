@@ -41,10 +41,11 @@ rebuild: clear install frontend ## Clear caches, reinstall dependencies, rebuild
 test: ## Run the Pest suite
 	php artisan test
 
-check: ## Pint, TypeScript and the JS linter, without changing files
+check: ## PHPStan, Pint, TypeScript and the JS linter, without changing files
+	vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 	vendor/bin/pint --test
 	npm run types:check
-	npx vp check
+	npx vp lint
 
 image: ## Build the Docker image from scratch (no layer cache; it builds the front end itself)
 	$(COMPOSE) build --no-cache
