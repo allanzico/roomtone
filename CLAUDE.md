@@ -52,7 +52,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 7. Demo party mode + energy arc + setup chat (handoff §4)
 8. Guest phone polish + mic audio reactivity
 9. Hardening
-10. README, license, submission ← **current** (phases 1–9 are built; see docs/FINAL-SWEEP.md for the last pass)
+10. README, license, submission ← **current** (phases 1–9 are built; the final sweep is done, see "Known limits")
 
 ## Design
 
@@ -83,7 +83,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - `room/Effects.tsx` falls back to 8-bit buffers on software renderers (SwiftShader/llvmpipe, i.e. hardware acceleration off), where HDR bloom renders black.
 - On the host link `syncFromServer` keeps the screen's own `nowPlaying` (the screen drives playback and tells the server); a reload that lands before the server heard can't put it back on an earlier track. A view-only screen follows the server.
 - When the server refuses a now-playing report (the set was rebuilt under the screen, so the item id is gone), the host screen reloads and adopts the server's playing track and queue (`adoptServer`), so guests' pages and the screen agree.
-- Dev keys on the host screen: G add fake guest, N next track, E cycle energy, H toggle the shortcut hint, / ask the DJ (host link only). Without the host key a played track loops to the end of the queue; with it the server owns the set.
+- Keys on the host screen: N next track, H toggle the shortcut hint, / ask the DJ (host link only); G (fake guest) and E (cycle energy) only in dev builds (`DEV_KEYS`). Without the host key a played track loops to the end of the queue; with it the server owns the set.
 
 ## YouTube notes (verified on Google's docs and console, Oct 2026)
 
@@ -134,6 +134,7 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 
 - Host link: `/e/{code}/host?key={host_token}` (`roomtone:party` prints the code; the key is `events.host_token`). Without the key the screen is view-only. With it: the "Ask the DJ" composer (phone: above the playback bar; TV: press / or click the hint), and the screen reports every track change (`POST /e/{code}/now-playing`) so the server's set is the truth for rebuilds and requests.
 - Requests: `POST /e/{code}/requests` → `SteerSet` job → `Services/Dj/RequestSteerer`: `Ai/Agents/RequestReader` reads genre/mood/summary (genre via `QlooClient::tags()`, first `urn:tag:genre:music:*`; moods via `QlooClient::MOODS`), one Qloo insights call per guest with all their signals plus the tags as a filter, then `Ai/Agents/RequestDj` picks one track per guest (up to 8) through `RequestValidator`. Picks go right after the playing track (`set_items.host_request_id`), survive set rebuilds, and the newest request replaces an older one's queued picks. Requests with no genre or mood change nothing and say so.
+- Refill: on the host link, when a now-playing report leaves 2 or fewer queued tracks, `NowPlayingController` dispatches `BuildSet` (at most once every 10 minutes per event, never after the end), which builds more from the guests' stored pools: no Qloo calls, but Anthropic tokens and YouTube searches.
 - While a request is pending the host screen polls every 3s (Inertia `usePoll`); Reverb will replace this.
 - YouTube's daily search quota answers HTTP 429 with a per-day `quota_limit` detail, not only 403 `quotaExceeded`; `YouTubeClient::noteQuota` handles both. When it is out, `SetBuilder` keeps only tracks that can play (see the quota note above).
 
@@ -179,3 +180,12 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 ## Taste test
 
 - `roomtone:taste {file}` is a standalone taste test (Qloo search → Claude picks or bridges → Qloo artists → Claude picks songs) that calls the Messages API directly with the `config/ai.php` key, URL and model. Its people file and report live in `storage/app/taste-test/` (git-ignored: Qloo data).
+
+## Known limits (final sweep, Oct 24, 2026)
+
+- YouTube search quota (100 a day) is the weak point; ask Google for more (don't rotate keys). Build the demo with `php artisan roomtone:demo:build` while there is quota (about 20 searches); the deployed `DEMO` predates the blend, so rebuild it to get blends. Demo copies need no quota.
+- Tracks stored before the video ranking keep their old video; to re-pick, clear `youtube_video_id` and `youtube_checked_at` on them (each costs a search).
+- `vp check` also reports formatting in `compose.yaml`, `render.yaml`, `database/parties/*.json` and `docs/*.md` (not code, left as is). Don't run `vp check --fix` without reverting those; `make check` (PHPStan, Pint, tsc, `vp lint`) is the gate.
+- The starter kit's `/dashboard`, Fortify login/register and settings pages exist but nothing links to them; no accounts are used.
+- The host key in the URL is the only host protection (by design): anyone with the host link can end the party.
+- Verify before relying on it: pool shuffle and the plan-aware prompt were only tested with a fake model, never judged live.

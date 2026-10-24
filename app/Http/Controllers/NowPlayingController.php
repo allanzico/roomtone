@@ -3,13 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Enums\SetItemStatus;
+use App\Jobs\BuildSet;
 use App\Models\Event;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class NowPlayingController extends Controller
 {
+    /** Queued tracks left at which the set is refilled. */
+    private const REFILL_AT = 2;
+
     /**
      * The host screen moved on to a track (it ended, or the host skipped). The server keeps the set's state, so set
      * rebuilds and host requests never bring back tracks the room has already heard.
@@ -32,6 +37,13 @@ class NowPlayingController extends Controller
 
             $item->update(['status' => SetItemStatus::Playing]);
         });
+
+        // The set is running out: build more from the guests' stored pools (no Qloo calls), at most every 10 minutes.
+        if (! $event->hasEnded()
+            && $event->setItems()->where('status', SetItemStatus::Queued)->count() <= self::REFILL_AT
+            && Cache::add("refill:{$event->id}", true, now()->addMinutes(10))) {
+            BuildSet::dispatch($event);
+        }
 
         return response()->noContent();
     }

@@ -51,7 +51,7 @@ This starts everything: the app on http://localhost:8000, the queue worker (gues
 
 Sound starts only after a click on **Start the party** (or the play button on a phone), because browsers block autoplay with sound.
 
-Keys on the host screen: `G` adds a fake guest, `N` plays the next track, `E` cycles the energy level, `H` shows or hides these hints, `/` asks the DJ (host link only).
+Keys on the host screen: `N` plays the next track, `H` shows or hides these hints, `/` asks the DJ (host link only). In dev builds (`composer run dev`) `G` also adds a fake guest and `E` cycles the energy level.
 
 ### Optional: live parties
 

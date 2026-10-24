@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { setup } from '@/routes';
 import { AskDj } from './AskDj';
 import { Loading } from './Loading';
+import { DEV_KEYS } from './useDevKeys';
 import { endParty } from './hostSync';
 import { clusterColor, guestColor, listOf, mixBar, mixOf } from './genres';
 import type { MixSegment } from './genres';
@@ -795,15 +796,19 @@ function KeyHint({ onDismiss }: { onDismiss: () => void }): ReactNode {
                     <kbd>/</kbd> ask the DJ
                 </button>
             )}
-            <span>
-                <kbd>G</kbd> add a guest
-            </span>
+            {DEV_KEYS && (
+                <span>
+                    <kbd>G</kbd> add a guest
+                </span>
+            )}
             <span>
                 <kbd>N</kbd> next track
             </span>
-            <span>
-                <kbd>E</kbd> energy
-            </span>
+            {DEV_KEYS && (
+                <span>
+                    <kbd>E</kbd> energy
+                </span>
+            )}
             <button
                 type="button"
                 onClick={onDismiss}

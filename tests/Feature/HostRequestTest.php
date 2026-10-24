@@ -6,6 +6,7 @@ use App\Ai\Agents\RequestReader;
 use App\Enums\LoveStatus;
 use App\Enums\RequestStatus;
 use App\Enums\SetItemStatus;
+use App\Jobs\BuildSet;
 use App\Jobs\SteerSet;
 use App\Models\Event;
 use App\Models\Guest;
@@ -209,4 +210,23 @@ test('a failed request job tells the host to say it again', function () {
     (new SteerSet($request))->failed(new RuntimeException('boom'));
 
     expect($request->fresh()->status)->toBe(RequestStatus::Failed)->and($request->fresh()->reply)->toBe('I lost the thread. Say that again?');
+});
+
+test('when the queue runs low the set is refilled, at most once every ten minutes, and never after the end', function () {
+    Queue::fake();
+    $two = $this->event->setItems()->where('position', 3)->sole();
+
+    $this->postJson('/e/REQ001/now-playing', ['key' => 'host-secret', 'item' => $two->id])->assertNoContent();
+    Queue::assertPushed(BuildSet::class, 1);
+
+    // The next track change inside the ten minutes does not build again.
+    $this->event->setItems()->where('position', 3)->update(['status' => SetItemStatus::Queued]);
+    $this->postJson('/e/REQ001/now-playing', ['key' => 'host-secret', 'item' => $two->id])->assertNoContent();
+    Queue::assertPushed(BuildSet::class, 1);
+
+    Cache::flush();
+    $this->event->update(['ended_at' => now()]);
+    $this->event->setItems()->where('position', 3)->update(['status' => SetItemStatus::Queued]);
+    $this->postJson('/e/REQ001/now-playing', ['key' => 'host-secret', 'item' => $two->id])->assertNoContent();
+    Queue::assertPushed(BuildSet::class, 1);
 });

@@ -85,9 +85,8 @@ export function useHostSync(): void {
                     body: JSON.stringify({ key: state.hostKey, item: item.id }),
                 })
                     .then((response) => {
-                        // The server did not take it (the set was rebuilt under the screen, or the session ended):
-                        // follow the server's playing track, so the guests' pages and the screen agree.
-                        if (!response.ok) {
+                        // The server no longer has that item (the set was rebuilt under the screen): follow the server's playing track, so the guests' pages and the screen agree.
+                        if (response.status === 404) {
                             router.reload({
                                 only: ['nowPlaying', 'queue', 'youtubePaused'],
                                 onSuccess: (page) =>
