@@ -6,6 +6,10 @@
 
 FROM dunglas/frankenphp:1-php8.4-alpine AS php-base
 RUN install-php-extensions pdo_sqlite intl bcmath pcntl zip opcache
+# The base image gives the frankenphp binary a file capability (cap_net_bind_service) so a non-root user can bind
+# port 80. Render starts containers without that capability, and the kernel then refuses to run the binary at all
+# ("exec: frankenphp: Operation not permitted", exit 126). Render's PORT is above 1024, so it is not needed.
+RUN setcap -r /usr/local/bin/frankenphp
 WORKDIR /app
 
 FROM php-base AS build
