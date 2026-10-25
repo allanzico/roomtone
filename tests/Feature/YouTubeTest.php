@@ -73,7 +73,7 @@ test('playable keeps public, processed, embeddable videos in the order asked', f
     ]])]);
 
     expect(app(YouTubeClient::class)->playable(['a', 'b', 'c', 'd']))->toBe(['a', 'c']);
-    Http::assertSent(fn (Request $r) => $r['id'] === 'a,b,c,d' && $r['part'] === 'status,statistics,contentDetails');
+    Http::assertSent(fn (Request $r) => $r['id'] === 'a,b,c,d' && $r['part'] === 'snippet,status,statistics,contentDetails');
 });
 
 test('a used-up search quota stops searching until midnight Pacific time', function () {
@@ -100,6 +100,8 @@ test('the daily search bucket answering 429 also stops searching until midnight 
         'details' => [['@type' => 'type.googleapis.com/google.rpc.ErrorInfo', 'metadata' => ['quota_limit' => 'defaultSearchListPerDayPerProject']]],
     ]], 429)]);
     $youtube = app(YouTubeClient::class);
+    // Pinned to mid-morning Pacific: two hours later must still be before the midnight reset, whatever the real clock.
+    $this->travelTo(now('America/Los_Angeles')->setTime(10, 0));
 
     expect(fn () => $youtube->search('a'))->toThrow(YouTubeException::class, '429');
     $this->travel(2)->hours();

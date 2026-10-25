@@ -37,6 +37,7 @@ frontend: ## Build the front end (client and SSR bundles; also regenerates the W
 rebuild: clear install frontend ## Clear caches, reinstall dependencies, rebuild the front end, migrate
 	composer dump-autoload --no-interaction
 	php artisan migrate --force
+	php artisan roomtone:recheck-videos
 
 test: ## Run the Pest suite
 	php artisan test

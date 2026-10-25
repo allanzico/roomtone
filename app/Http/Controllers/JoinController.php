@@ -96,6 +96,8 @@ class JoinController extends Controller
                         ? $love->resolved_name : null,
                     // Read as a place: its music stands in for the love ("music from Rio de Janeiro").
                     'place' => $love->qloo_type === 'location',
+                    // Read through Qloo's taste for a dish or cuisine.
+                    'dish' => $love->qloo_type === 'tag',
                 ])->all(),
             ],
             'song' => $item === null ? null : [

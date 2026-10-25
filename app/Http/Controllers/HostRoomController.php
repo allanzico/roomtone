@@ -134,6 +134,18 @@ class HostRoomController extends Controller
             })?->id;
         }
 
+        // The genres stored on the track when it was picked (any pool: a love, the blend, a calm or energetic list).
+        $stored = $item->track->genres;
+
+        if ($stored !== null) {
+            $genres = array_map(Str::lower(...), $stored);
+            $theirs = ($event->guests->firstWhere('id', $item->reason_guest_id)->clusters ?? collect())
+                ->sortByDesc(fn (TasteCluster $c) => (float) $c->getRelationValue('pivot')->weight)->pluck('id')->flip();
+
+            return $event->tasteClusters->filter(fn (TasteCluster $c) => in_array(Str::lower($c->label), $genres, true))
+                ->sortBy(fn (TasteCluster $c) => $theirs[$c->id] ?? PHP_INT_MAX)->first()?->id;
+        }
+
         // A blend track has no love row: its pool is its guest's blend.
         $pool = $item->reason_love_id !== null
             ? ($loves->get($item->reason_love_id)->pool ?? [])

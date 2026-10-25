@@ -6,6 +6,7 @@ use App\Ai\Agents\RequestReader;
 use App\Enums\LoveStatus;
 use App\Enums\RequestStatus;
 use App\Enums\SetItemStatus;
+use App\Events\RoomUpdated;
 use App\Jobs\BuildSet;
 use App\Jobs\SteerSet;
 use App\Models\Event;
@@ -229,4 +230,14 @@ test('when the queue runs low the set is refilled, at most once every ten minute
     $this->event->setItems()->where('position', 3)->update(['status' => SetItemStatus::Queued]);
     $this->postJson('/e/REQ001/now-playing', ['key' => 'host-secret', 'item' => $two->id])->assertNoContent();
     Queue::assertPushed(BuildSet::class, 1);
+});
+
+test('guests\' pages are told when the playing track changes', function () {
+    Queue::fake();
+    Illuminate\Support\Facades\Event::fake([RoomUpdated::class]);
+    $two = $this->event->setItems()->where('position', 3)->sole();
+
+    $this->postJson('/e/REQ001/now-playing', ['key' => 'host-secret', 'item' => $two->id])->assertNoContent();
+
+    Illuminate\Support\Facades\Event::assertDispatched(RoomUpdated::class, fn ($e) => $e->code === 'REQ001');
 });

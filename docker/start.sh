@@ -10,6 +10,8 @@ mkdir -p "$(dirname "$DB")"
 
 php artisan optimize --quiet
 php artisan migrate --force
+# Picks stored under older rules (an hour-long podcast, an audition) are forgotten; videos.list only, no search quota.
+php artisan roomtone:recheck-videos --quiet || true
 
 # Restarts a command whenever it exits (the worker also stops itself every hour to stay fresh).
 keep() { while true; do "$@" || true; sleep 1; done; }

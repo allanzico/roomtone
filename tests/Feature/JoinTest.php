@@ -98,10 +98,10 @@ test('the guest page shows how the DJ read each love, then their song and how fa
         ->component('Guest')
         ->where('guest.loves', [
             // "as" only when the DJ read it as something else.
-            ['text' => 'Ozark', 'status' => 'resolved', 'as' => null, 'place' => false],
-            ['text' => 'qxzv', 'status' => 'unresolved', 'as' => null, 'place' => false],
-            ['text' => 'Lisbon', 'status' => 'pending', 'as' => null, 'place' => false],
-            ['text' => 'Rice and beans', 'status' => 'resolved', 'as' => 'Rio de Janeiro', 'place' => true],
+            ['text' => 'Ozark', 'status' => 'resolved', 'as' => null, 'place' => false, 'dish' => false],
+            ['text' => 'qxzv', 'status' => 'unresolved', 'as' => null, 'place' => false, 'dish' => false],
+            ['text' => 'Lisbon', 'status' => 'pending', 'as' => null, 'place' => false, 'dish' => false],
+            ['text' => 'Rice and beans', 'status' => 'resolved', 'as' => 'Rio de Janeiro', 'place' => true, 'dish' => false],
         ])
         ->where('reading', true)
         ->where('song', null));

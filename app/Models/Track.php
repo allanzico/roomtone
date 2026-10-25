@@ -16,9 +16,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $bpm
  * @property int $energy
  * @property string|null $qloo_artist_id
+ * @property list<string>|null $genres Qloo's genres for the artist when last picked; null when unknown
  * @property CarbonImmutable|null $youtube_checked_at
  */
-#[Fillable(['artist', 'title', 'youtube_video_id', 'bpm', 'energy', 'qloo_artist_id', 'youtube_checked_at'])]
+#[Fillable(['artist', 'title', 'youtube_video_id', 'bpm', 'energy', 'qloo_artist_id', 'genres', 'youtube_checked_at'])]
 #[WithoutTimestamps]
 class Track extends Model
 {
@@ -27,7 +28,7 @@ class Track extends Model
      */
     protected function casts(): array
     {
-        return ['youtube_checked_at' => 'immutable_datetime'];
+        return ['youtube_checked_at' => 'immutable_datetime', 'genres' => 'array'];
     }
 
     /**

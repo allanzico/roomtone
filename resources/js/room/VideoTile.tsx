@@ -19,6 +19,12 @@ let current: YouTubePlayer | null = null;
 /** YouTube player errors that mean the video itself can't play here (bad id, removed or private, not embeddable). */
 const UNAVAILABLE = [2, 100, 101, 150];
 
+/** A video that has not started playing or buffering this long after it was loaded is skipped (no error event fires for every kind of block). */
+const STALL_MS = 12000;
+
+const PLAYING = 1;
+const BUFFERING = 3;
+
 const MIN_WIDTH = 356;
 const DESIGN_WIDTH = 400;
 /** Bottom-centre gap between "Now playing" (ends x 940) and "Up next" (starts x 1380), in design px. */
@@ -104,6 +110,32 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
         let player: YouTubePlayer | null = null;
         let loadedItemId: number | null = null;
         let cancelled = false;
+        let stall: ReturnType<typeof setTimeout> | null = null;
+        let state = -1;
+
+        const clearStall = () => {
+            if (stall !== null) {
+                clearTimeout(stall);
+                stall = null;
+            }
+        };
+
+        // Some blocked or broken videos never raise an error: the player just sits unstarted. Skip those too.
+        const watchStall = (itemId: number) => {
+            clearStall();
+            stall = setTimeout(() => {
+                const room = useRoom.getState();
+
+                if (
+                    room.nowPlaying?.id === itemId &&
+                    room.started &&
+                    !room.paused
+                ) {
+                    reportUnavailable(itemId, 0);
+                    room.nextTrack();
+                }
+            }, STALL_MS);
+        };
 
         const sync = () => {
             const room = useRoom.getState();
@@ -129,7 +161,9 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
 
                 if (playing) {
                     player.loadVideoById(item.videoId);
+                    watchStall(item.id);
                 } else {
+                    clearStall();
                     player.cueVideoById(item.videoId);
                 }
 
@@ -138,6 +172,10 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
 
             if (playing) {
                 player.playVideo();
+
+                if (state !== PLAYING && state !== BUFFERING) {
+                    watchStall(item.id);
+                }
             } else {
                 player.pauseVideo();
             }
@@ -169,12 +207,22 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
                             sync();
                         },
                         onStateChange: (event) => {
+                            state = event.data;
+
+                            if (
+                                event.data === PLAYING ||
+                                event.data === BUFFERING
+                            ) {
+                                clearStall();
+                            }
+
                             if (event.data === ENDED) {
                                 useRoom.getState().nextTrack();
                             }
                         },
                         // Removed, private or not embeddable: record it (host link) and move on at once.
                         onError: (event) => {
+                            clearStall();
                             const room = useRoom.getState();
 
                             if (
@@ -217,6 +265,7 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
 
         return () => {
             cancelled = true;
+            clearStall();
             unsubscribe();
 
             if (current === player) {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\SetItemStatus;
+use App\Events\RoomUpdated;
 use App\Jobs\BuildSet;
 use App\Models\Event;
 use Illuminate\Http\Request;
@@ -37,6 +38,9 @@ class NowPlayingController extends Controller
 
             $item->update(['status' => SetItemStatus::Playing]);
         });
+
+        // Guests' pages show their own song and how far away it is: tell them the playing track changed.
+        RoomUpdated::for($event);
 
         // The set is running out: build more from the guests' stored pools (no Qloo calls), at most every 10 minutes.
         if (! $event->hasEnded()

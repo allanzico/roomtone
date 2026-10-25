@@ -39,6 +39,8 @@ class DjAgent implements Agent, HasProviderOptions, HasTools
         - Reach the target number of tracks. Every guest who has results must get at least one track.
         - A love marked MIDDLE GROUND is Qloo's blend of everything one guest loves. That guest's first track comes
           from it (the server enforces this); it is the song that sounds like all their loves together.
+        - CALM and ENERGETIC lists are Qloo's calmer and more energetic artists for the same loves. When they are
+          there, fill the slots that want low energy from CALM lists and the peak slots from ENERGETIC lists.
         - Spread each guest's tracks across all their loves: every love gets a track before any love gets a second.
         - At least half the tracks should come from loves that are not music (shows, films, places, food, brands).
         - Prefer ranks 1 to 5. An artist that appears in several guests' lists is a bridge: use it for one of them.

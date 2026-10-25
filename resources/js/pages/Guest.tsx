@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePoll } from '@inertiajs/react';
 import { useEchoPublic } from '@laravel/echo-react';
 import { useState } from 'react';
 import { GuestForm } from '@/guest/GuestForm';
@@ -20,6 +20,8 @@ type Props = {
             as: string | null;
             /** Read as a place: that place's music stands in for it (a food read as its city). */
             place: boolean;
+            /** Read through Qloo's taste for a dish or cuisine. */
+            dish: boolean;
         }[];
     };
     song: {
@@ -43,6 +45,9 @@ export default function Guest({ event, guest, song, reading }: Props) {
     useEchoPublic(`room.${event.code}`, 'RoomUpdated', () =>
         router.reload({ only: ['event', 'guest', 'song', 'reading'] }),
     );
+    // The live connection can drop (a phone asleep, a flaky network): check now and then, so the song shown here
+    // follows what plays. Inertia pauses polling while the page is hidden.
+    usePoll(15000, { only: ['event', 'guest', 'song', 'reading'] });
     const [editing, setEditing] = useState(false);
 
     if (event.ended) {
@@ -117,11 +122,13 @@ export default function Guest({ event, guest, song, reading }: Props) {
                                             aria-hidden="true"
                                         />
                                     )}
-                                    {love.status === 'resolved' && love.as
-                                        ? love.place
-                                            ? `Got it: music from ${love.as}`
-                                            : `Got it: ${love.as}`
-                                        : STATUS[love.status]}
+                                    {love.status === 'resolved' && love.dish
+                                        ? `Got it: read as the taste of ${(love.as ?? love.text).toLowerCase()}`
+                                        : love.status === 'resolved' && love.as
+                                          ? love.place
+                                              ? `Got it: music from ${love.as}`
+                                              : `Got it: ${love.as}`
+                                          : STATUS[love.status]}
                                 </span>
                             </li>
                         ))}

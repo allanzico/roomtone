@@ -105,11 +105,12 @@ class QlooClient
      *
      * @param  list<string>  $entityIds  Signals from candidates() with kind "entity".
      * @param  list<string>  $tags  Steering filters, e.g. MOODS values or ids from tags().
+     * @param  list<string>  $signalTags  Tags as a taste signal (a dish or cuisine): only some work, see foodSignal().
      * @return list<array{id: string, name: string, popularity: float, songs: list<string>, tags: list<string>, genres: list<string>}>
      */
-    public function artists(array $entityIds = [], ?string $location = null, array $tags = [], int $take = 25): array
+    public function artists(array $entityIds = [], ?string $location = null, array $tags = [], int $take = 25, array $signalTags = []): array
     {
-        if ($entityIds === [] && ($location === null || trim($location) === '') && $tags === []) {
+        if ($entityIds === [] && ($location === null || trim($location) === '') && $tags === [] && $signalTags === []) {
             throw new InvalidArgumentException('Give at least one entity, location or tag.');
         }
 
@@ -117,6 +118,10 @@ class QlooClient
 
         if ($entityIds !== []) {
             $params['signal.interests.entities'] = $this->csv($entityIds);
+        }
+
+        if ($signalTags !== []) {
+            $params['signal.interests.tags'] = $this->csv($signalTags);
         }
 
         if ($location !== null && trim($location) !== '') {
@@ -150,6 +155,7 @@ class QlooClient
         return match ($kind) {
             'entity' => $this->artists([$value], take: $take),
             'location' => $this->artists(location: $value, take: $take),
+            'tag' => $this->artists(take: $take, signalTags: [$value]),
             default => throw new InvalidArgumentException("Unknown signal kind: {$kind}"),
         };
     }
@@ -170,6 +176,29 @@ class QlooClient
 
         return array_map(fn (array $tag) => ['id' => (string) $tag['id'], 'name' => (string) $tag['name']], $tags);
     }
+
+    /**
+     * Food and dish tags for something a guest typed ("burger", "beef steak"): cuisine, specialty dish and menu
+     * highlight tags, in Qloo's order.
+     *
+     * @return list<array{id: string, name: string}>
+     */
+    public function foodTags(string $query, int $take = 8): array
+    {
+        /** @var list<array<string, mixed>> $tags */
+        $tags = $this->get('/v2/tags', ['filter.query' => trim($query), 'take' => $take])['results']['tags'] ?? [];
+
+        return array_values(array_map(
+            fn (array $tag) => ['id' => (string) $tag['id'], 'name' => (string) $tag['name']],
+            array_filter($tags, fn (array $tag) => preg_match('/^urn:tag:(cuisine|specialty_dish|menu_highlight):/', (string) $tag['id']) === 1),
+        ));
+    }
+
+    /**
+     * A tag Qloo does not know. As a signal it returns Qloo's default list, which is what a tag that Qloo ignores
+     * returns too: a tag is a real signal only when its artists differ from this baseline.
+     */
+    public const IGNORED_TAG = 'urn:tag:cuisine:qloo:zzzzzz';
 
     /**
      * @param  array<string, scalar>  $params
