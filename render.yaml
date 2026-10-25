@@ -16,15 +16,14 @@ services:
       mountPath: /var/roomtone
       sizeGB: 1
     envVars:
+      # APP_KEY, QLOO_API_KEY, YOUTUBE_API_KEY and AI_PROVIDER_KEY live in this Render group.
+      - fromGroup: roomtone-env
       - key: APP_NAME
         value: Roomtone
       - key: APP_ENV
         value: production
       - key: APP_DEBUG
         value: "false"
-      # php artisan key:generate --show
-      - key: APP_KEY
-        sync: false
       # The public address, e.g. https://roomtone.stackyard.io or https://roomtone.onrender.com
       - key: APP_URL
         sync: false
@@ -54,14 +53,8 @@ services:
         value: reverb
       - key: INERTIA_SSR_ENABLED
         value: "false"
-      - key: QLOO_API_KEY
-        sync: false
       - key: QLOO_API_URL
         value: https://hackathon.api.qloo.com
-      - key: YOUTUBE_API_KEY
-        sync: false
-      - key: AI_PROVIDER_KEY
-        sync: false
       - key: AI_MODEL
         value: claude-haiku-5-5
       # Reverb runs inside the container; the key is public (it is in the JavaScript and the socket URL).
