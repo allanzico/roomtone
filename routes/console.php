@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('roomtone:refresh-videos')->daily();
 Schedule::command('model:prune')->daily();
+Schedule::command('roomtone:backup')->dailyAt('03:30');

@@ -1,7 +1,11 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { router } from '@inertiajs/react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { setup } from '@/routes';
 import { AskDj } from './AskDj';
-import { guestColor, listOf, mixBar, mixOf } from './genres';
+import { Loading } from './Loading';
+import { endParty } from './hostSync';
+import { clusterColor, guestColor, listOf, mixBar, mixOf } from './genres';
 import type { MixSegment } from './genres';
 import { reducedMotion } from './stage';
 import { useRoom } from './store';
@@ -14,6 +18,9 @@ import {
     startPosition,
     videoRect,
     VideoTile,
+    autoStart,
+    controlsPosition,
+    VolumeControl,
 } from './VideoTile';
 
 /**
@@ -30,6 +37,13 @@ export function Hud({
     const stage = useRoom((s) => s.stage);
     const playable = useRoom(hasVideo);
     const started = useRoom((s) => s.started);
+
+    // Play as soon as the first song with a video arrives, when the browser allows it (see autoStart).
+    useEffect(() => {
+        if (playable && !started) {
+            autoStart();
+        }
+    }, [playable, started]);
 
     return (
         <>
@@ -48,6 +62,9 @@ export function Hud({
             {playable && <VideoTile style={videoRect(stage)} />}
             {playable && !started && (
                 <StartParty style={startPosition(stage)} />
+            )}
+            {playable && started && stage.layout === 'tv' && (
+                <TvControls style={controlsPosition(stage)} />
             )}
             <Arrivals />
         </>
@@ -133,13 +150,12 @@ function PhoneHud({ poolBottom }: { poolBottom: number }) {
 
 function useMix(): MixSegment[] {
     const clusters = useRoom((s) => s.clusters);
-    const guests = useRoom((s) => s.guests);
     const nowPlaying = useRoom((s) => s.nowPlaying);
     const queue = useRoom((s) => s.queue);
 
     return useMemo(
-        () => mixOf(clusters, guests, nowPlaying, queue),
-        [clusters, guests, nowPlaying, queue],
+        () => mixOf(clusters, nowPlaying, queue),
+        [clusters, nowPlaying, queue],
     );
 }
 
@@ -165,6 +181,7 @@ function Header() {
     const name = useRoom((s) => s.event.name);
     const reconnecting = useRoom((s) => s.reconnecting);
     const layout = useRoom((s) => s.stage.layout);
+    const host = useRoom((s) => s.hostKey !== null);
 
     return (
         <header className="rt-header">
@@ -172,9 +189,31 @@ function Header() {
                 <h1 className="rt-event-name">{name}</h1>
                 <GenreDots />
                 {layout === 'phone' && <InviteButton />}
+                {host && <EndParty />}
             </div>
             {reconnecting && <p className="rt-reconnecting">Reconnecting…</p>}
         </header>
+    );
+}
+
+/** Host link only: end the party (guests' pages say so and stop taking changes), then go to the setup chat. */
+function EndParty() {
+    const end = async () => {
+        if (!window.confirm('End this party and set up a new one?')) {
+            return;
+        }
+
+        if (await endParty()) {
+            router.visit(setup.url());
+        } else {
+            window.alert("Couldn't end the party. Try again.");
+        }
+    };
+
+    return (
+        <button type="button" className="rt-end-party" onClick={end}>
+            End party
+        </button>
     );
 }
 
@@ -219,6 +258,7 @@ function Join({ large }: { large: boolean }) {
             <div className="rt-join-text">
                 <p className="rt-join-url">{join.host}</p>
                 <p className="rt-code">{code}</p>
+                <CopyLink url={join.url} />
             </div>
             {/* Drawn by the server from the join link; trusted markup. */}
             <div
@@ -228,6 +268,33 @@ function Join({ large }: { large: boolean }) {
                 dangerouslySetInnerHTML={{ __html: join.qr }}
             />
         </aside>
+    );
+}
+
+/** The guest link to paste into a group chat. */
+function CopyLink({ url }: { url: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // The browser refused (plain HTTP on a network address, or the page lost focus): show it to copy by hand.
+            window.prompt('Copy the link to the room', url);
+        }
+    };
+
+    return (
+        <button
+            type="button"
+            className="rt-copy-link"
+            onClick={() => void copy()}
+            aria-live="polite"
+        >
+            {copied ? 'Link copied' : 'Copy link'}
+        </button>
     );
 }
 
@@ -294,6 +361,8 @@ function titleAxes(energy: number): CSSProperties {
 function NowPlaying() {
     const item = useRoom((s) => s.nowPlaying);
     const guests = useRoom((s) => s.guests);
+    const playable = useRoom(hasVideo);
+    const paused = useRoom((s) => s.youtubePaused);
 
     // Keep the previous track on screen for its 300ms fade-out.
     const [shown, setShown] = useState(item);
@@ -338,6 +407,16 @@ function NowPlaying() {
                 </div>
             )}
             {item && <MixBar />}
+            {!item && guests.length > 0 && (
+                <Loading>The DJ is picking the first songs…</Loading>
+            )}
+            {item && !playable && (
+                <p className="rt-notice" role="status">
+                    {paused
+                        ? "YouTube's daily search limit is reached, so new songs can't be looked up until it resets. Songs already found still play."
+                        : 'No video was found for this song.'}
+                </p>
+            )}
         </section>
     );
 }
@@ -485,7 +564,9 @@ function UpNext() {
 
                     return (
                         <li key={item.id} className="rt-next-item">
-                            <Dot color={guestColor(guest, clusters)} />
+                            <Dot
+                                color={clusterColor(item.clusterId, clusters)}
+                            />
                             <span className="rt-next-title" title={item.title}>
                                 {item.title}
                             </span>
@@ -584,7 +665,54 @@ function Arrivals() {
     );
 }
 
-/* ---------- Phone playback ---------- */
+/* ---------- Playback ---------- */
+
+/** TV: play/pause, next and volume under the video. */
+function TvControls({ style }: { style: CSSProperties }) {
+    const paused = useRoom((s) => s.paused);
+    const togglePaused = useRoom((s) => s.togglePaused);
+    const nextTrack = useRoom((s) => s.nextTrack);
+    const canSkip = useRoom((s) => s.queue.length > 0);
+
+    return (
+        <nav className="rt-tv-controls" style={style} aria-label="Playback">
+            <button
+                type="button"
+                className="rt-volume-mute"
+                aria-label={paused ? 'Play' : 'Pause'}
+                onClick={togglePaused}
+            >
+                {paused ? <PlayIcon /> : <PauseIcon />}
+            </button>
+            <button
+                type="button"
+                className="rt-volume-mute"
+                aria-label="Next track"
+                onClick={nextTrack}
+                disabled={!canSkip}
+            >
+                <NextIcon />
+            </button>
+            <VolumeControl />
+        </nav>
+    );
+}
+
+function NextIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M6 5l9 7-9 7z" fill="currentColor" />
+            <rect
+                x="16"
+                y="5"
+                width="2.5"
+                height="14"
+                rx="1"
+                fill="currentColor"
+            />
+        </svg>
+    );
+}
 
 function PlaybackBar() {
     const started = useRoom((s) => s.started);
@@ -595,7 +723,7 @@ function PlaybackBar() {
 
     return (
         <nav className="rt-playback" aria-label="Playback">
-            <span className="rt-playback-room">Room</span>
+            <VolumeControl />
             <button
                 type="button"
                 className="rt-pause"

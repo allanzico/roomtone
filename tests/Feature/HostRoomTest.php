@@ -5,6 +5,7 @@ use App\Models\Event;
 use App\Models\Track;
 use Database\Seeders\DemoPartySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -69,4 +70,47 @@ test('host room sends each track\'s video id', function () {
     Track::query()->where('title', 'Last Last')->update(['youtube_video_id' => 'abc123']);
 
     $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.videoId', 'abc123'));
+});
+
+test('a track takes the island of its own artist\'s genres, not of the guest it is for', function () {
+    $event = Event::where('code', 'DEMO')->firstOrFail();
+    $playing = $event->setItems()->with('track')->where('status', SetItemStatus::Playing)->firstOrFail();
+    $guest = $event->guests()->findOrFail($playing->reason_guest_id);
+    $fado = $event->tasteClusters()->where('label', 'Fado')->firstOrFail();
+    $love = $guest->loves()->firstOrFail();
+    $playing->update(['reason_love_id' => $love->id]);
+
+    $pool = fn (array $genres) => [['id' => 'q1', 'name' => $playing->track->artist, 'songs' => [], 'genres' => $genres, 'rank' => 1]];
+
+    $love->update(['pool' => $pool(['Fado', 'World'])]);
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.clusterId', $fado->id));
+
+    // No island matches the artist's genres: no genre at all, whatever the guest's island is.
+    $love->update(['pool' => $pool(['Chamber Pop', 'Indie Folk'])]);
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.clusterId', null));
+});
+
+test('a track with no genre data falls back to its guest\'s island', function () {
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->whereNot('nowPlaying.clusterId', null));
+});
+
+test('a host request\'s pick takes the island of the genre asked for, never its guest\'s island', function () {
+    $event = Event::query()->where('code', 'DEMO')->first();
+    $item = $event->setItems()->where('status', SetItemStatus::Playing)->first();
+    $house = $event->tasteClusters()->first();
+    $request = $event->hostRequests()->create(['text' => 'more house', 'interpreted' => ['genre' => strtolower($house->label), 'mood' => null, 'summary' => 'house', 'tags' => []]]);
+    $item->update(['host_request_id' => $request->id, 'reason_love_id' => null]);
+
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.clusterId', $house->id));
+
+    // No island carries that genre: no genre (grey), not the guest's island.
+    $request->update(['interpreted' => ['genre' => 'zzz', 'mood' => null, 'summary' => 'zzz', 'tags' => []]]);
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('nowPlaying.clusterId', null));
+});
+
+test('the host screen is told when YouTube lookups are paused', function () {
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('youtubePaused', false));
+
+    Cache::put('youtube:quota-out', true, 60);
+    $this->get('/e/DEMO/host')->assertInertia(fn (Assert $page) => $page->where('youtubePaused', true));
 });

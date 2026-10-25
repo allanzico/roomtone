@@ -11,7 +11,9 @@ use App\Models\GuestLove;
 use App\Models\Track;
 use App\Services\Dj\GuestResolver;
 use App\Services\Dj\SetBuilder;
+use App\Services\Dj\SetValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -111,7 +113,10 @@ test('the set is built from add_track calls, with code-written reasons, and the 
         ->and(Track::where('artist', 'Rick Astley')->exists())->toBeFalse();
 
     DjAgent::assertPrompted(fn ($p) => $p->contains('Target: 10 tracks')
-        && $p->contains("guest {$this->maria->id} loves \"Ozark\": 1. Brent Cobb (Brent Cobb Hit; Brent Cobb B-side)")
+        && $p->contains("guest {$this->maria->id} loves \"Ozark\": ")
+        && $p->contains('1. Brent Cobb (Brent Cobb Hit; Brent Cobb B-side)')
+        && $p->contains('2. Tems (Tems Hit; Tems B-side)')
+        && $p->contains('energy plan wants about: energy')
         && $p->contains('untrusted guest input')
         && ! $p->contains('qxzv'));
 });
@@ -178,11 +183,117 @@ test('set target is about 1.2 tracks per guest with results, between 10 and 40',
         ->and(SetBuilder::targetFor(50))->toBe(40);
 });
 
-test('resolving a guest schedules one debounced set build per event', function () {
+test('the room\'s first set builds at once; later builds wait so guests joining together share one', function () {
     Queue::fake();
 
     (new ResolveGuest($this->gran))->handle(app(GuestResolver::class));
+    Queue::assertPushed(BuildSet::class, fn (BuildSet $job) => $job->event->is($this->event) && $job->delay === null);
 
+    $this->event->setItems()->create(['track_id' => Track::create(['artist' => 'A', 'title' => 'T'])->id, 'position' => 1, 'status' => SetItemStatus::Queued, 'reason_text' => '']);
+    Queue::fake();
+
+    (new ResolveGuest($this->gran))->handle(app(GuestResolver::class));
     Queue::assertPushed(BuildSet::class, fn (BuildSet $job) => $job->event->is($this->event) && $job->delay !== null);
     expect((new BuildSet($this->event))->uniqueId())->toBe((string) $this->event->id);
+});
+
+test('videos are found after the agent picks: a track with none in its first two songs is dropped, a known miss is refused at once', function () {
+    // Mariza has no video for either song; Kate Bush's songs are already known to have none. A fresh HTTP factory:
+    // fakes stack, and the one from beforeEach would answer first.
+    Http::swap(new HttpFactory);
+    Http::fake(function (HttpRequest $request) {
+        if (str_contains($request->url(), 'yt.test/search')) {
+            return Http::response(['items' => str_contains($request['q'], 'Mariza') ? [] : [
+                ['id' => ['videoId' => 'v-'.md5($request['q'])], 'snippet' => ['title' => $request['q'], 'channelTitle' => 'x - Topic']],
+            ]]);
+        }
+
+        return Http::response(['items' => array_map(fn ($id) => ['id' => $id, 'status' => ['embeddable' => true, 'privacyStatus' => 'public', 'uploadStatus' => 'processed']], explode(',', $request['id']))]);
+    });
+    foreach (['Kate Bush Hit', 'Kate Bush B-side'] as $title) {
+        Track::create(['artist' => 'Kate Bush', 'title' => $title, 'youtube_checked_at' => now()]);
+    }
+
+    fakeDj($this, [[
+        ['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Ozark')],
+        ['artist' => 'Mariza', 'title' => 'Mariza Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Lisbon')],
+        ['artist' => 'Kate Bush', 'title' => 'Kate Bush Hit', 'for_guest' => $this->jake->id, 'love' => loveId($this->jake, 'Dark')],
+    ]]);
+
+    $result = app(SetBuilder::class)->build($this->event);
+
+    expect($result['log'])->toBe(['ok', 'ok', 'no_video'])
+        ->and($result['youtube_lookups'])->toBe(2)
+        ->and($this->event->setItems()->with('track')->get()->map(fn ($i) => $i->track->artist)->all())->toBe(['Brent Cobb'])
+        ->and(Track::where('artist', 'Mariza')->whereNotNull('youtube_checked_at')->count())->toBe(2);
+});
+
+test('a guest\'s first track comes from the middle ground of their loves, and is not tied to one love', function () {
+    $this->maria->update(['blend' => ['loves' => [], 'text' => 'Ozark + Lisbon', 'pool' => [
+        ['id' => 'q-Cesaria', 'name' => 'Cesaria', 'songs' => ['Cesaria Hit', 'Cesaria B-side'], 'genres' => [], 'rank' => 1],
+    ]]]);
+    $blend = SetValidator::BLEND_BASE + $this->maria->id;
+
+    fakeDj($this, [[
+        ['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Ozark')],
+        ['artist' => 'Cesaria', 'title' => 'Cesaria Hit', 'for_guest' => $this->maria->id, 'love' => $blend],
+        ['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Ozark')],
+    ]]);
+
+    $result = app(SetBuilder::class)->build($this->event);
+
+    $item = $this->event->setItems()->with('track')->get()->first(fn ($i) => $i->track->artist === 'Cesaria');
+
+    expect($result['log'])->toBe(['blend_first', 'ok', 'ok'])
+        ->and($item->reason_text)->toBe('because Maria loves Ozark + Lisbon')
+        // A blend is not a guest_loves row.
+        ->and($item->reason_love_id)->toBeNull()
+        ->and($item->reason_guest_id)->toBe($this->maria->id);
+    DjAgent::assertPrompted(fn ($p) => $p->contains('MIDDLE GROUND') && $p->contains("Love {$blend}"));
+});
+
+test('the occasion and the energy plan are in the prompt, so a different party gets different songs', function () {
+    $this->event->update(['occasion' => 'workout', 'energy_plan' => ['timeline' => 'trip', 'minutes' => 60, 'points' => [['at' => 0, 'energy' => 5], ['at' => 60, 'energy' => 5]]]]);
+    fakeDj($this, [[]]);
+
+    app(SetBuilder::class)->build($this->event);
+
+    DjAgent::assertPrompted(fn ($p) => $p->contains('Party: Rooftop (workout)') && $p->contains('energy 5: 10'));
+});
+
+test('a track that could not be looked up is dropped while others can play, and kept when none can', function () {
+    // YouTube's search is paused: Brent Cobb has a stored video, Mariza has none and cannot be looked up.
+    Http::swap(new HttpFactory);
+    Http::fake(['yt.test/search*' => Http::response(['error' => ['message' => 'quota', 'errors' => [['reason' => 'quotaExceeded']]]], 403)]);
+    Track::create(['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'youtube_video_id' => 'stored1', 'youtube_checked_at' => now()]);
+
+    fakeDj($this, [[
+        ['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Ozark')],
+        ['artist' => 'Mariza', 'title' => 'Mariza Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Lisbon')],
+    ]]);
+    app(SetBuilder::class)->build($this->event);
+
+    expect($this->event->setItems()->with('track')->get()->map(fn ($i) => $i->track->artist)->all())->toBe(['Brent Cobb']);
+
+    // Nothing playable anywhere: the set is kept so the screen has something to show.
+    $this->event->setItems()->delete();
+    Track::query()->delete();
+    fakeDj($this, [[
+        ['artist' => 'Mariza', 'title' => 'Mariza Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Lisbon')],
+    ]]);
+    app(SetBuilder::class)->build($this->event);
+
+    expect($this->event->setItems()->with('track')->get()->map(fn ($i) => $i->track->artist)->all())->toBe(['Mariza']);
+});
+
+test('a song of an artist that already has a stored video is used, so no search is spent', function () {
+    Track::create(['artist' => 'Brent Cobb', 'title' => 'Brent Cobb B-side', 'youtube_video_id' => 'stored2', 'youtube_checked_at' => now()]);
+
+    fakeDj($this, [[
+        ['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'for_guest' => $this->maria->id, 'love' => loveId($this->maria, 'Ozark')],
+    ]]);
+    app(SetBuilder::class)->build($this->event);
+
+    expect($this->event->setItems()->with('track')->get()->map(fn ($i) => $i->track->title)->all())->toBe(['Brent Cobb B-side']);
+    Http::assertNotSent(fn ($r) => str_contains($r->url(), '/search'));
 });

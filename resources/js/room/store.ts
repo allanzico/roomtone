@@ -28,10 +28,15 @@ type RoomState = {
     started: boolean;
     /** Host pressed pause. */
     paused: boolean;
+    /** Player volume, 0–100, and mute; remembered on this device. */
+    volume: number;
+    muted: boolean;
     /** Realtime connection dropped (Phase 2+). The last state stays on screen. */
     reconnecting: boolean;
     stage: Stage;
     join: JoinInfo;
+    /** YouTube lookups are paused: new songs may have no video. */
+    youtubePaused: boolean;
     /** Host link key, or null on a view-only screen. */
     hostKey: string | null;
     latestRequest: HostRequestState | null;
@@ -40,16 +45,35 @@ type RoomState = {
     init: (props: HostRoomProps) => void;
     /** Fresh server props (after a request or a poll): the server owns the set when there is a host key. */
     syncFromServer: (props: HostRoomProps) => void;
+    /** Take the server's playing track and queue as they are (after the server refused a report). */
+    adoptServer: (props: HostRoomProps) => void;
     setAskOpen: (open: boolean) => void;
     addGuest: (guest: Guest) => void;
     nextTrack: () => void;
     setEnergy: (energy: number) => void;
     setAudioLevel: (level: number) => void;
     togglePaused: () => void;
+    setVolume: (volume: number) => void;
+    toggleMute: () => void;
     start: () => void;
     stop: () => void;
     setStage: (stage: Stage) => void;
 };
+
+const VOLUME_KEY = 'roomtone-volume';
+const MUTED_KEY = 'roomtone-muted';
+
+function saved(key: string): string | null {
+    return typeof window === 'undefined'
+        ? null
+        : window.localStorage.getItem(key);
+}
+
+function savedVolume(): number {
+    const volume = Number(saved(VOLUME_KEY) ?? NaN);
+
+    return volume >= 0 && volume <= 100 ? volume : 100;
+}
 
 export const useRoom = create<RoomState>()((set) => ({
     event: { code: '', name: '', occasion: null, energy: 3 },
@@ -61,8 +85,11 @@ export const useRoom = create<RoomState>()((set) => ({
     audioLevel: 0,
     started: false,
     paused: false,
+    volume: savedVolume(),
+    muted: saved(MUTED_KEY) === '1',
     reconnecting: false,
     join: { url: '', host: '', qr: '' },
+    youtubePaused: false,
     hostKey: null,
     latestRequest: null,
     askOpen: false,
@@ -81,25 +108,45 @@ export const useRoom = create<RoomState>()((set) => ({
             energy: clampEnergy(props.event.energy),
             join: props.join,
             hostKey: props.hostKey,
+            youtubePaused: props.youtubePaused,
             latestRequest: props.latestRequest,
         }),
 
-    syncFromServer: (props) =>
-        set((state) => ({
-            energy:
-                props.nowPlaying && state.nowPlaying?.id !== props.nowPlaying.id
-                    ? clampEnergy(props.nowPlaying.energy)
-                    : state.energy,
-            clusters: props.clusters,
-            guests: props.guests,
+    adoptServer: (props) =>
+        set({
+            nowPlaying: props.nowPlaying,
             queue: props.queue,
-            latestRequest: props.latestRequest,
-            // Same track: keep the object so the player does not restart it.
-            nowPlaying:
-                state.nowPlaying?.id === props.nowPlaying?.id
-                    ? state.nowPlaying
-                    : props.nowPlaying,
-        })),
+            energy: props.nowPlaying
+                ? clampEnergy(props.nowPlaying.energy)
+                : clampEnergy(props.event.energy),
+            youtubePaused: props.youtubePaused,
+        }),
+
+    syncFromServer: (props) =>
+        set((state) => {
+            // The host screen is where playback happens and it tells the server when it moves on, so a reload that
+            // lands before the server heard (or an older one) must not put the screen back on a track it already
+            // left. A view-only screen follows the server. Same track: the object stays, so the player does not
+            // restart it.
+            const keep =
+                state.nowPlaying !== null &&
+                (state.hostKey !== null ||
+                    state.nowPlaying.id === props.nowPlaying?.id);
+            const nowPlaying = keep ? state.nowPlaying : props.nowPlaying;
+
+            return {
+                energy:
+                    nowPlaying && nowPlaying.id !== state.nowPlaying?.id
+                        ? clampEnergy(nowPlaying.energy)
+                        : state.energy,
+                clusters: props.clusters,
+                guests: props.guests,
+                queue: props.queue.filter((item) => item.id !== nowPlaying?.id),
+                latestRequest: props.latestRequest,
+                youtubePaused: props.youtubePaused,
+                nowPlaying,
+            };
+        }),
 
     setAskOpen: (askOpen) => set({ askOpen }),
 
@@ -137,6 +184,23 @@ export const useRoom = create<RoomState>()((set) => ({
     setAudioLevel: (audioLevel) => set({ audioLevel }),
 
     togglePaused: () => set((state) => ({ paused: !state.paused })),
+    // Like YouTube's slider: dragging to 0 mutes, moving it up unmutes.
+    setVolume: (volume) => {
+        const next = Math.min(100, Math.max(0, Math.round(volume)));
+        window.localStorage.setItem(VOLUME_KEY, String(next));
+        window.localStorage.setItem(MUTED_KEY, next === 0 ? '1' : '0');
+        set({ volume: next, muted: next === 0 });
+    },
+    toggleMute: () =>
+        set((state) => {
+            // Unmuting from 0 brings the sound back at half.
+            const volume =
+                state.muted && state.volume === 0 ? 50 : state.volume;
+            window.localStorage.setItem(VOLUME_KEY, String(volume));
+            window.localStorage.setItem(MUTED_KEY, state.muted ? '0' : '1');
+
+            return { muted: !state.muted, volume };
+        }),
 
     start: () => set({ started: true, paused: false }),
 

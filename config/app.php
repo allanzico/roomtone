@@ -68,6 +68,12 @@ return [
     'timezone' => 'UTC',
 
     /*
+    | Proxies whose X-Forwarded-* headers are trusted: "*" behind Cloudflare, so rate limits see the real visitor
+    | IP. Empty (the default) trusts none. Applied in AppServiceProvider.
+    */
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

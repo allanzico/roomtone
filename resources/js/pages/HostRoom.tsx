@@ -1,6 +1,7 @@
-import { Head, router, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { useEchoPublic } from '@laravel/echo-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { setup } from '@/routes';
 import { useHostSync } from '@/room/hostSync';
 import { Hud } from '@/room/Hud';
 import { live } from '@/room/live';
@@ -94,6 +95,8 @@ export default function HostRoom(props: HostRoomProps) {
                     'queue',
                     'clusters',
                     'guests',
+                    'ended',
+                    'youtubePaused',
                 ],
             });
         },
@@ -110,6 +113,8 @@ export default function HostRoom(props: HostRoomProps) {
                 'queue',
                 'clusters',
                 'guests',
+                'ended',
+                'youtubePaused',
             ],
         },
         { autoStart: false },
@@ -133,6 +138,28 @@ export default function HostRoom(props: HostRoomProps) {
 
         return () => window.removeEventListener('resize', onResize);
     }, []);
+
+    if (props.ended) {
+        return (
+            <>
+                <Head title={props.event.name} />
+                <main className="rt-room rt-guest">
+                    <div className="rt-space" aria-hidden="true">
+                        <Starfield />
+                    </div>
+                    <div className="rt-guest-body">
+                        <p className="rt-landing-mark">{props.event.name}</p>
+                        <h1 className="rt-guest-title">
+                            This party has ended.
+                        </h1>
+                        <p className="rt-guest-lede">
+                            <Link href={setup.url()}>Set up a new one</Link>
+                        </p>
+                    </div>
+                </main>
+            </>
+        );
+    }
 
     return (
         <>

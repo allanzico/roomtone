@@ -1,0 +1,23 @@
+# Roomtone's web server: FrankenPHP (PHP inside Caddy), plain HTTP on $PORT (80 locally; Render sets its own and
+# handles HTTPS in front).
+{
+	frankenphp
+	auto_https off
+}
+
+:{$PORT:80} {
+	root * /app/public
+	encode zstd br gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Reverb runs in the same container: browsers connect to ws(s)://<host>/app/<key>.
+	reverse_proxy /app/* 127.0.0.1:8080
+
+	php_server
+}

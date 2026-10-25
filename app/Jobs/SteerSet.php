@@ -23,6 +23,10 @@ class SteerSet implements ShouldQueue
 
     public function handle(RequestSteerer $steerer): void
     {
+        if ($this->request->event->hasEnded()) {
+            return;
+        }
+
         $steerer->steer($this->request);
         RoomUpdated::for($this->request->event);
     }

@@ -755,11 +755,6 @@
     font-size: 17px;
 }
 
-.rt-playback-room {
-    padding-left: 4px;
-    color: var(--rt-text-3);
-}
-
 .rt-pause {
     display: grid;
     place-items: center;
@@ -810,6 +805,141 @@
     width: 100%;
     height: 100%;
     border: 0;
+}
+
+/* Mute and volume slider, like YouTube's: under the player on a TV, in the playback bar on a phone. */
+.rt-volume {
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rt-volume-mute {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--rt-radius-pill);
+    background: transparent;
+    color: var(--rt-ink);
+    cursor: pointer;
+}
+
+.rt-volume-mute:hover {
+    background: rgb(237 237 242 / 0.1);
+}
+
+.rt-volume-mute:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+/* TV: play/pause, next and volume in one row under the video. */
+.rt-tv-controls {
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.rt-volume-slider {
+    width: 96px;
+    height: 20px;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+}
+
+.rt-volume-slider::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(
+        to right,
+        var(--rt-ink) var(--rt-volume),
+        rgb(237 237 242 / 0.25) var(--rt-volume)
+    );
+}
+
+.rt-volume-slider::-moz-range-track {
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(
+        to right,
+        var(--rt-ink) var(--rt-volume),
+        rgb(237 237 242 / 0.25) var(--rt-volume)
+    );
+}
+
+.rt-volume-slider::-webkit-slider-thumb {
+    width: 12px;
+    height: 12px;
+    margin-top: -4.5px;
+    border-radius: 50%;
+    background: var(--rt-ink);
+    appearance: none;
+}
+
+.rt-volume-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--rt-ink);
+}
+
+.rt-copy-link {
+    margin-top: 6px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px dashed var(--rt-line);
+    background: transparent;
+    color: var(--rt-text-3);
+    font: inherit;
+    font-size: var(--rt-fs-micro);
+    cursor: pointer;
+}
+
+.rt-guest-change {
+    align-self: flex-start;
+    min-height: var(--rt-tap);
+    padding: 0;
+    border: 0;
+    border-bottom: 1px dashed var(--rt-line);
+    background: transparent;
+    color: var(--rt-text-3);
+    font: inherit;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.rt-guest-change:hover {
+    color: var(--rt-ink);
+}
+
+.rt-end-party {
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--rt-line);
+    border-radius: var(--rt-radius-pill);
+    background: transparent;
+    color: var(--rt-text-3);
+    font: inherit;
+    font-size: var(--rt-fs-micro);
+    cursor: pointer;
+}
+
+.rt-end-party:hover {
+    color: var(--rt-ink);
+    border-color: var(--rt-ink);
+}
+
+.rt-copy-link:hover {
+    color: var(--rt-ink);
 }
 
 .rt-start {
@@ -1160,8 +1290,16 @@
 
 /* ---------- Setup: talk to the DJ ---------- */
 
+/* Setup is a page that grows with the chat, not the host screen's fixed frame: it scrolls, the stars stay put. */
 .rt-setup {
-    min-height: 100vh;
+    position: relative;
+    inset: auto;
+    min-height: 100dvh;
+    overflow: visible;
+}
+
+.rt-setup .rt-space {
+    position: fixed;
 }
 
 .rt-wordmark {
@@ -1182,7 +1320,8 @@
         calc(100vw - 270px - var(--rt-gutter-laptop))
     );
     margin-left: 270px;
-    padding: 110px 0 180px;
+    /* Room for the floating dock under the last line. */
+    padding: 110px 0 calc(var(--rt-dock-h, 0px) + 32px);
 }
 
 .rt-setup-first {
@@ -1259,6 +1398,25 @@
 .rt-start-chip .rt-dot {
     width: 10px;
     height: 10px;
+}
+
+/* Quick replies under the DJ's latest line: smaller than the first-open starts, dots in the DJ's colour. */
+.rt-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 28px;
+    list-style: none;
+}
+
+.rt-reply {
+    --rt-dot: var(--rt-dj);
+    color: var(--rt-text-2);
+    font-size: 18px;
+}
+
+.rt-reply .rt-dot {
+    width: 8px;
+    height: 8px;
 }
 
 .rt-setup-dot {
@@ -1363,6 +1521,58 @@
     fill: var(--rt-ink);
 }
 
+.rt-curve-handle[data-selected='true'] .rt-curve-halo {
+    stroke: var(--rt-ink);
+    stroke-width: 1;
+}
+
+.rt-curve {
+    cursor: crosshair;
+}
+
+.rt-curve-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 680px;
+}
+
+.rt-curve-tools {
+    margin-top: 2px;
+}
+
+.rt-curve-hint {
+    color: var(--rt-text-4);
+    font-size: 14px;
+}
+
+.rt-curve-x {
+    cursor: pointer;
+    outline: none;
+}
+
+.rt-curve-x-hit {
+    fill: transparent;
+}
+
+.rt-curve-x-bg {
+    fill: rgb(237 237 242 / 0.14);
+    stroke: rgb(237 237 242 / 0.4);
+    stroke-width: 1;
+}
+
+.rt-curve-x path {
+    stroke: var(--rt-ink);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+}
+
+.rt-curve-x:hover .rt-curve-x-bg,
+.rt-curve-x:focus-visible .rt-curve-x-bg {
+    fill: rgb(237 237 242 / 0.28);
+    stroke: var(--rt-ink);
+}
+
 .rt-facts {
     display: flex;
     flex-wrap: wrap;
@@ -1410,27 +1620,67 @@
     min-height: 56px;
 }
 
-.rt-setup-composer {
+/* Everything the host acts on floats at the bottom: quick replies, the plan with its button, the composer. The
+   chat scrolls above it. */
+.rt-setup-dock {
+    --rt-curve-max-h: 20vh;
+
     position: fixed;
-    bottom: 64px;
+    bottom: 0;
     left: 270px;
+    z-index: 2;
     display: flex;
-    align-items: flex-end;
+    flex-direction: column;
     gap: 14px;
     width: min(
         var(--rt-chat-col),
         calc(100vw - 270px - var(--rt-gutter-laptop))
     );
+    padding: 28px 0 48px;
 }
 
-/* Lines scrolling under the pinned composer fade out instead of showing through it. */
-.rt-setup-composer::before {
+/* Lines scrolling under the dock fade out instead of showing through it. */
+.rt-setup-dock::before {
     position: absolute;
-    inset: -60px -40px -64px;
+    inset: 0 -100vw;
     z-index: -1;
-    background: linear-gradient(to bottom, transparent, var(--rt-space-0) 55%);
+    background: linear-gradient(to bottom, transparent, var(--rt-space-0) 40px);
     content: '';
     pointer-events: none;
+}
+
+.rt-setup-dock .rt-plan {
+    gap: 4px;
+}
+
+/* The curve keeps its proportions (dragging maps the pointer onto it) and never takes over a short window. */
+.rt-setup-dock .rt-curve {
+    width: min(100%, calc(var(--rt-curve-max-h) * var(--rt-curve-ratio)));
+}
+
+.rt-plan-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 28px;
+}
+
+.rt-setup-composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+}
+
+/* Short windows: the dock gives the chat more room. */
+@media (max-height: 820px) {
+    .rt-setup-dock {
+        padding-bottom: 28px;
+    }
+
+    .rt-setup-dock .rt-start-note {
+        display: none;
+    }
 }
 
 .rt-setup-input {
@@ -1450,7 +1700,7 @@
     .rt-setup-col {
         width: auto;
         margin: 0;
-        padding: 100px var(--rt-gutter-phone) 150px
+        padding: 100px var(--rt-gutter-phone) calc(var(--rt-dock-h, 0px) + 24px)
             calc(var(--rt-gutter-phone) + 26px);
     }
 
@@ -1475,6 +1725,10 @@
 
     .rt-start-chip {
         font-size: 16px;
+    }
+
+    .rt-replies {
+        gap: 0 20px;
     }
 
     .rt-dj-line {
@@ -1513,11 +1767,12 @@
         min-height: 52px;
     }
 
-    .rt-setup-composer {
+    .rt-setup-dock {
         right: var(--rt-gutter-phone);
-        bottom: 40px;
         left: var(--rt-gutter-phone);
+        gap: 10px;
         width: auto;
+        padding: 28px 0 40px;
     }
 
     .rt-setup-input {
@@ -1553,4 +1808,45 @@
         animation: none !important;
         transition: none !important;
     }
+}
+
+/* ---------- Loading ---------- */
+
+.rt-loading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--rt-text-3);
+    font-size: var(--rt-fs-meta);
+}
+
+.rt-spinner {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--rt-line);
+    border-top-color: var(--rt-ember);
+    border-radius: 50%;
+    animation: rt-spin 0.9s linear infinite;
+}
+
+.rt-guest-love-status .rt-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 8px;
+    vertical-align: -1px;
+}
+
+@keyframes rt-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.rt-notice {
+    margin-top: 12px;
+    max-width: 560px;
+    color: var(--rt-text-3);
+    font-size: var(--rt-fs-meta);
 }

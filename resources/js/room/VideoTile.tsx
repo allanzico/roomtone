@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import type { Stage } from './stage';
+import { reportUnavailable } from './hostSync';
 import { useRoom } from './store';
 import type { SetItem } from './types';
 import { ENDED, loadYouTube } from './youtube';
@@ -14,6 +15,9 @@ import type { YouTubePlayer } from './youtube';
 
 /** The live player, so the Start button can call playVideo() inside its click (the user gesture). */
 let current: YouTubePlayer | null = null;
+
+/** YouTube player errors that mean the video itself can't play here (bad id, removed or private, not embeddable). */
+const UNAVAILABLE = [2, 100, 101, 150];
 
 const MIN_WIDTH = 356;
 const DESIGN_WIDTH = 400;
@@ -161,6 +165,7 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
                         onReady: () => {
                             player = created;
                             current = created;
+                            applyVolume(created);
                             sync();
                         },
                         onStateChange: (event) => {
@@ -168,8 +173,22 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
                                 useRoom.getState().nextTrack();
                             }
                         },
-                        // Removed, private or not embeddable: move on.
-                        onError: () => useRoom.getState().nextTrack(),
+                        // Removed, private or not embeddable: record it (host link) and move on at once.
+                        onError: (event) => {
+                            const room = useRoom.getState();
+
+                            if (
+                                room.nowPlaying &&
+                                UNAVAILABLE.includes(event.data)
+                            ) {
+                                reportUnavailable(
+                                    room.nowPlaying.id,
+                                    event.data,
+                                );
+                            }
+
+                            room.nextTrack();
+                        },
                         // The browser refused to play with sound: ask for the click again.
                         onAutoplayBlocked: () => useRoom.getState().stop(),
                     },
@@ -180,6 +199,13 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
             });
 
         const unsubscribe = useRoom.subscribe((state, prev) => {
+            if (
+                player &&
+                (state.volume !== prev.volume || state.muted !== prev.muted)
+            ) {
+                applyVolume(player);
+            }
+
             if (
                 state.nowPlaying?.id !== prev.nowPlaying?.id ||
                 state.started !== prev.started ||
@@ -206,10 +232,116 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
 }
 
 /** Call from a click or tap handler: browsers only allow sound that starts inside a user gesture. */
+/** Opening the room was a click (the setup chat's button), so the browser lets it play with sound: start as soon
+ * as there is something to play, once. If the browser still refuses, the Start button comes back. */
+let autoStarted = false;
+
+export function autoStart(): void {
+    if (!autoStarted && navigator.userActivation?.hasBeenActive) {
+        autoStarted = true;
+        startPlayback();
+    }
+}
+
 export function startPlayback(): void {
-    current?.unMute();
+    if (current) {
+        applyVolume(current);
+    }
+
     current?.playVideo();
     useRoom.getState().start();
+}
+
+function applyVolume(player: YouTubePlayer): void {
+    const { volume, muted } = useRoom.getState();
+
+    player.setVolume(volume);
+
+    if (muted) {
+        player.mute();
+    } else {
+        player.unMute();
+    }
+}
+
+/** The TV's playback controls sit under the tile, left-aligned like YouTube's own (never over the video). */
+export function controlsPosition(stage: Stage): CSSProperties {
+    const tile = tvVideoBox(stage);
+
+    return {
+        position: 'fixed',
+        left: tile.left,
+        top: tile.top + tile.height + 8,
+    };
+}
+
+/** Mute button and volume slider, like the YouTube player's. */
+export function VolumeControl({ style }: { style?: CSSProperties }) {
+    const volume = useRoom((s) => s.volume);
+    const muted = useRoom((s) => s.muted);
+    const setVolume = useRoom((s) => s.setVolume);
+    const toggleMute = useRoom((s) => s.toggleMute);
+    const level = muted ? 0 : volume;
+
+    return (
+        <div className="rt-volume" style={style}>
+            <button
+                type="button"
+                className="rt-volume-mute"
+                aria-label={muted ? 'Unmute' : 'Mute'}
+                onClick={toggleMute}
+            >
+                <SpeakerIcon level={level} />
+            </button>
+            <input
+                type="range"
+                className="rt-volume-slider"
+                min={0}
+                max={100}
+                step={5}
+                value={level}
+                aria-label="Volume"
+                aria-valuetext={muted ? 'Muted' : `${volume}%`}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                style={{ '--rt-volume': `${level}%` } as CSSProperties}
+            />
+        </div>
+    );
+}
+
+function SpeakerIcon({ level }: { level: number }) {
+    return (
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
+            {level === 0 ? (
+                <path
+                    d="M16.5 9.5l5 5m0-5l-5 5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                />
+            ) : (
+                <>
+                    <path
+                        d="M16 9.2a4 4 0 0 1 0 5.6"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        fill="none"
+                    />
+                    {level > 50 && (
+                        <path
+                            d="M18.6 6.6a7.6 7.6 0 0 1 0 10.8"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            fill="none"
+                        />
+                    )}
+                </>
+            )}
+        </svg>
+    );
 }
 
 export function StartParty({ style }: { style: CSSProperties }) {

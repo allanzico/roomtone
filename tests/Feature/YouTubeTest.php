@@ -25,15 +25,20 @@ function video(string $id, string $title, string $channel): array
     return ['id' => ['kind' => 'youtube#video', 'videoId' => $id], 'snippet' => ['title' => $title, 'channelTitle' => $channel]];
 }
 
-function status(string $id, bool $embeddable = true, string $privacy = 'public'): array
+function status(string $id, bool $embeddable = true, string $privacy = 'public', int $views = 1000, string $duration = 'PT3M30S'): array
 {
-    return ['id' => $id, 'status' => ['embeddable' => $embeddable, 'privacyStatus' => $privacy, 'uploadStatus' => 'processed']];
+    return [
+        'id' => $id,
+        'status' => ['embeddable' => $embeddable, 'privacyStatus' => $privacy, 'uploadStatus' => 'processed'],
+        'statistics' => ['viewCount' => (string) $views],
+        'contentDetails' => ['duration' => $duration],
+    ];
 }
 
 /** Fake YouTube: search answers by song title, videos.list answers every id as playable unless listed in $blocked. */
-function fakeYouTube(array $searches, array $blocked = []): void
+function fakeYouTube(array $searches, array $blocked = [], array $views = [], array $durations = []): void
 {
-    Http::fake(function (Request $request) use ($searches, $blocked) {
+    Http::fake(function (Request $request) use ($searches, $blocked, $views, $durations) {
         if (str_contains($request->url(), 'yt.test/search')) {
             foreach ($searches as $needle => $items) {
                 if (str_contains($request['q'], $needle)) {
@@ -45,7 +50,7 @@ function fakeYouTube(array $searches, array $blocked = []): void
         }
 
         return Http::response(['items' => array_map(
-            fn (string $id) => status($id, embeddable: ! in_array($id, $blocked, true)),
+            fn (string $id) => status($id, embeddable: ! in_array($id, $blocked, true), views: $views[$id] ?? 1000, duration: $durations[$id] ?? 'PT3M30S'),
             explode(',', $request['id']),
         )]);
     });
@@ -68,7 +73,7 @@ test('playable keeps public, processed, embeddable videos in the order asked', f
     ]])]);
 
     expect(app(YouTubeClient::class)->playable(['a', 'b', 'c', 'd']))->toBe(['a', 'c']);
-    Http::assertSent(fn (Request $r) => $r['id'] === 'a,b,c,d' && $r['part'] === 'status');
+    Http::assertSent(fn (Request $r) => $r['id'] === 'a,b,c,d' && $r['part'] === 'status,statistics,contentDetails');
 });
 
 test('a used-up search quota stops searching until midnight Pacific time', function () {
@@ -270,4 +275,91 @@ test('the resolve command reports how many tracks have a video', function () {
     $this->artisan('roomtone:resolve-videos', ['code' => 'demo'])
         ->expectsOutput('1 of 10 tracks have a video.')
         ->assertSuccessful();
+});
+
+test('a whole set is looked up at once: searches side by side, one playability check per round, fallbacks in a second round', function () {
+    fakeYouTube([
+        'Free Mind' => [video('tems', 'Tems - Free Mind', 'Tems - Topic')],
+        'Ghost Song' => [],
+        'Real Song' => [video('mariza', 'Mariza - Real Song', 'Mariza')],
+        'Nothing' => [],
+    ]);
+    Track::create(['artist' => 'Known', 'title' => 'Stored', 'youtube_video_id' => 'kept', 'youtube_checked_at' => now()]);
+
+    $found = app(TrackResolver::class)->resolveMany([
+        3 => ['Tems', ['Free Mind']],
+        5 => ['Mariza', ['Ghost Song', 'Real Song']],
+        7 => ['Nobody', ['Nothing']],
+        9 => ['Known', ['Stored']],
+    ]);
+
+    expect($found[3]->youtube_video_id)->toBe('tems')
+        ->and($found[5]->title)->toBe('Real Song')
+        ->and($found[5]->youtube_video_id)->toBe('mariza')
+        ->and($found[7])->toBeNull()
+        ->and($found[9]->youtube_video_id)->toBe('kept');
+
+    // Round 1: three searches and one check; round 2: Mariza's next song. The stored track is never searched.
+    expect(Http::recorded(fn (Request $r) => str_contains($r->url(), '/search')))->toHaveCount(4)
+        ->and(Http::recorded(fn (Request $r) => str_contains($r->url(), '/videos')))->toHaveCount(2)
+        ->and(Track::where('title', 'Nothing')->sole()->youtube_checked_at)->not->toBeNull();
+});
+
+test('in a set lookup, a search that fails keeps the track without a video and stores nothing', function () {
+    Http::fake(['yt.test/search*' => Http::response(['error' => ['message' => 'Backend Error']], 500)]);
+
+    $found = app(TrackResolver::class)->resolveMany([1 => ['Tems', ['Free Mind']]]);
+
+    expect($found[1]->title)->toBe('Free Mind')
+        ->and($found[1]->youtube_video_id)->toBeNull()
+        ->and(Track::count())->toBe(0);
+});
+
+test('the search asks for the official upload', function () {
+    expect(TrackResolver::query('Tems', 'Free Mind'))->toBe('Tems Free Mind official');
+});
+
+test('talent show and stage recordings are not the song', function () {
+    fakeYouTube(['Satellite' => [
+        video('voice', 'Lena Meyer Landrut - Satellite (Olivia) | The Voice Kids 2013 | Blind Auditions | SAT.1', 'The Voice Kids'),
+        video('idol', 'Lena - Satellite - Idol Finale', 'Idol'),
+    ]]);
+
+    expect(app(TrackResolver::class)->resolve('Lena Meyer Landrut', ['Satellite']))->toBeNull();
+});
+
+test('the artist\'s official video beats a more watched upload by someone else, and a VEVO beats a Topic upload', function () {
+    fakeYouTube(['Free Mind' => [
+        video('fan', 'Tems - Free Mind', 'FanChannel'),
+        video('topic', 'Free Mind', 'Tems - Topic'),
+        video('vevo', 'Tems - Free Mind (Official Video)', 'TemsVEVO'),
+    ]], views: ['fan' => 90_000_000, 'topic' => 5_000_000, 'vevo' => 1_000_000]);
+
+    expect(app(TrackResolver::class)->resolve('Tems', ['Free Mind'])->youtube_video_id)->toBe('vevo');
+});
+
+test('among equals, "official" in the title wins', function () {
+    fakeYouTube(['Free Mind' => [
+        video('a', 'Tems - Free Mind', 'Fan A'),
+        video('b', 'Tems - Free Mind', 'Fan B'),
+        video('c', 'Tems - Free Mind (Official Audio)', 'Fan C'),
+    ]], views: ['a' => 100, 'b' => 9000, 'c' => 5]);
+    expect(app(TrackResolver::class)->resolve('Tems', ['Free Mind'])->youtube_video_id)->toBe('c');
+});
+
+test('among equal uploads the most watched wins', function () {
+    fakeYouTube(['Free Mind' => [
+        video('a', 'Tems - Free Mind', 'Fan A'),
+        video('b', 'Tems - Free Mind', 'Fan B'),
+    ]], views: ['a' => 100, 'b' => 9000]);
+    expect(app(TrackResolver::class)->resolve('Tems', ['Free Mind'])->youtube_video_id)->toBe('b');
+});
+
+test('a snippet or a ten-hour loop is not the song', function () {
+    fakeYouTube(['Free Mind' => [
+        video('short', 'Tems - Free Mind', 'Tems'),
+        video('loop', 'Tems - Free Mind', 'Tems - Topic'),
+    ]], durations: ['short' => 'PT0M25S', 'loop' => 'PT10H']);
+
+    expect(app(TrackResolver::class)->resolve('Tems', ['Free Mind']))->toBeNull();
 });

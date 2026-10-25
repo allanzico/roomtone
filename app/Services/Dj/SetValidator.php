@@ -10,11 +10,17 @@ use Closure;
  * what to fix, so the agent can retry from the message.
  *
  * @phpstan-type Pooled array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}
- * @phpstan-type Love array{id: int, guest_id: int, text: string, pool: list<Pooled>}
+ * @phpstan-type Love array{id: int, guest_id: int, text: string, pool: list<Pooled>, blend?: true}
  * @phpstan-type Accepted array{artist: string, title: string, qloo_artist_id: string, energy: int, bpm: int, for_guest_id: int, love_id: int, rank: int, reason: string, bridge: bool}
  */
 class SetValidator
 {
+    /**
+     * A guest's blend (Qloo's middle ground between all their loves) is offered to the agent as a love with this id
+     * plus the guest's id. It has no guest_loves row.
+     */
+    public const BLEND_BASE = 1_000_000;
+
     public readonly int $target;
 
     /** @var list<Accepted> */
@@ -124,6 +130,7 @@ class SetValidator
             return $this->reject('typed_by_guest', "A guest typed {$match['name']} themselves. Pick a discovery instead.");
         }
 
+        $loveGuest = $this->guests[$love['guest_id']];
         $waiting = array_values(array_filter($this->unservedIds(), fn (int $id) => $id !== $forGuest));
         $free = $this->target - count($this->accepted) - 1;
 
@@ -134,6 +141,23 @@ class SetValidator
 
         if (count(array_filter($this->accepted, fn (array $t) => $t['for_guest_id'] === $forGuest)) >= $this->guestCap()) {
             return $this->reject('guest_cap', "Guest {$forGuest} already has {$this->guestCap()} tracks. Pick a track for someone else.");
+        }
+
+        // A guest with a blend gets their first track from it: the middle ground of their loves, not one love alone.
+        $blendId = self::BLEND_BASE + $love['guest_id'];
+
+        if ($forGuest === $love['guest_id'] && $loveId !== $blendId && isset($this->loves[$blendId])
+            && ! collect($this->accepted)->contains(fn (array $t) => $t['love_id'] === $blendId && $t['for_guest_id'] === $forGuest)) {
+            return $this->reject('blend_first', "{$loveGuest}'s first track must come from love {$blendId}, the middle ground of all their loves ({$this->loves[$blendId]['text']}).");
+        }
+
+        // Round the guest's loves: one love can't get another of their tracks while another of theirs has fewer.
+        // Bridges (a track for another guest) don't count.
+        $behind = $forGuest === $love['guest_id'] ? $this->lovesBehind($loveId) : [];
+
+        if ($behind !== []) {
+            return $this->reject('love_spread', "{$loveGuest} already has a track from love {$loveId} ({$love['text']}). Use their "
+                .'other loves first: '.implode(', ', array_map(fn (array $l) => "love {$l['id']} ({$l['text']})", $behind)).'.');
         }
 
         if ($energy < 1 || $energy > 5 || $bpm < 40 || $bpm > 220) {
@@ -151,7 +175,6 @@ class SetValidator
             $song = $playable;
         }
 
-        $loveGuest = $this->guests[$love['guest_id']];
         // Name a second guest whose taste shares this artist: the one the agent chose, or another guest's love that
         // ranks it in Qloo's top 5. One extra name keeps the reason short enough for the screen.
         $shared = $bridgeLove ?? $this->sharedLove($match['name'], [$forGuest, $love['guest_id']]);
@@ -220,6 +243,23 @@ class SetValidator
         $served = array_column($this->accepted, 'for_guest_id');
 
         return array_values(array_diff($withPools, $served));
+    }
+
+    /**
+     * The same guest's other loves that have fewer of the guest's own tracks than this one, so this love must wait.
+     *
+     * @return list<Love>
+     */
+    private function lovesBehind(int $loveId): array
+    {
+        $owner = $this->loves[$loveId]['guest_id'];
+        $count = fn (int $id) => count(array_filter($this->accepted, fn (array $t) => $t['love_id'] === $id && $t['for_guest_id'] === $owner));
+        $mine = $count($loveId);
+
+        return array_values(array_filter(
+            $this->loves,
+            fn (array $other) => $other['guest_id'] === $owner && $other['id'] !== $loveId && $count($other['id']) < $mine,
+        ));
     }
 
     public function guestCap(): int

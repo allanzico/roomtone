@@ -1,0 +1,33 @@
+# Roomtone in Docker on this machine: http://localhost (one container, as on Render).
+#   docker compose up -d --build
+# Reads the same .env as `composer run dev`; the values below are the ones that differ inside Docker.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        REVERB_APP_KEY: local-key
+    image: roomtone:local
+    env_file: .env
+    environment:
+      APP_ENV: local
+      APP_URL: http://localhost
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/roomtone/database.sqlite
+      LOG_CHANNEL: stderr
+      INERTIA_SSR_ENABLED: "false"
+      REVERB_APP_ID: roomtone
+      REVERB_APP_KEY: local-key
+      REVERB_APP_SECRET: local-secret
+      REVERB_HOST: 127.0.0.1
+      REVERB_PORT: 8080
+      REVERB_SCHEME: http
+    ports:
+      - "80:80"
+    volumes:
+      - database:/var/roomtone
+    restart: unless-stopped
+
+volumes:
+  database:

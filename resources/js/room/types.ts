@@ -38,6 +38,8 @@ export type SetItem = {
     energy: number;
     reasonGuestId: number | null;
     reasonText: string;
+    /** The island of the track's own genre (its artist's Qloo tags), or null when it matches none. */
+    clusterId: number | null;
 };
 
 export type HostRequestState = {
@@ -57,6 +59,10 @@ export type JoinInfo = {
 };
 
 export type HostRoomProps = {
+    /** The host ended the party: the screen stops and says so. */
+    ended: boolean;
+    /** YouTube lookups are paused (daily quota): songs without a video can't play until it resets. */
+    youtubePaused: boolean;
     event: RoomEvent;
     join: JoinInfo;
     clusters: Cluster[];

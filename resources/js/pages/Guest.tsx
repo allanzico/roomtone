@@ -1,16 +1,25 @@
 import { Head, router } from '@inertiajs/react';
 import { useEchoPublic } from '@laravel/echo-react';
+import { useState } from 'react';
+import { GuestForm } from '@/guest/GuestForm';
+import { PartyEnded } from '@/guest/PartyEnded';
+import { Loading } from '@/room/Loading';
 import { Starfield } from '@/room/Starfield';
+import { update as updateMe } from '@/routes/events/me';
 import '../../css/tokens.css';
 import '@/room/room.css';
 
 type Props = {
-    event: { code: string; name: string };
+    event: { code: string; name: string; ended: boolean };
     guest: {
         name: string;
         loves: {
             text: string;
             status: 'pending' | 'resolved' | 'unresolved';
+            /** What the DJ read it as, when that differs from the text. */
+            as: string | null;
+            /** Read as a place: that place's music stands in for it (a food read as its city). */
+            place: boolean;
         }[];
     };
     song: {
@@ -26,14 +35,63 @@ type Props = {
 const STATUS = {
     pending: 'Reading…',
     resolved: 'Got it',
-    unresolved: "Couldn't read this one",
+    unresolved: 'No music link for this one, your other loves lead',
 } as const;
 
 /** The guest's page after joining: how the DJ read their loves, and their song once it is in the set. */
 export default function Guest({ event, guest, song, reading }: Props) {
     useEchoPublic(`room.${event.code}`, 'RoomUpdated', () =>
-        router.reload({ only: ['guest', 'song', 'reading'] }),
+        router.reload({ only: ['event', 'guest', 'song', 'reading'] }),
     );
+    const [editing, setEditing] = useState(false);
+
+    if (event.ended) {
+        return <PartyEnded name={event.name} />;
+    }
+
+    if (editing) {
+        return (
+            <>
+                <Head title={event.name} />
+                <main className="rt-room rt-guest">
+                    <div className="rt-space" aria-hidden="true">
+                        <Starfield />
+                    </div>
+                    <GuestForm
+                        initial={{
+                            name: guest.name,
+                            loves: guest.loves.map((love) => love.text),
+                        }}
+                        action={{
+                            url: updateMe.url(event.code),
+                            method: 'put',
+                        }}
+                        submit="Save"
+                        busy="Saving…"
+                        onSaved={() => setEditing(false)}
+                        after={
+                            <button
+                                type="button"
+                                className="rt-guest-change"
+                                onClick={() => setEditing(false)}
+                            >
+                                Cancel
+                            </button>
+                        }
+                    >
+                        <p className="rt-landing-mark">{event.name}</p>
+                        <h1 className="rt-guest-title">
+                            Change what you told the DJ.
+                        </h1>
+                        <p className="rt-guest-lede">
+                            Only what you change is read again. Your song
+                            follows when the set is rebuilt.
+                        </p>
+                    </GuestForm>
+                </main>
+            </>
+        );
+    }
 
     return (
         <>
@@ -53,11 +111,28 @@ export default function Guest({ event, guest, song, reading }: Props) {
                             <li key={love.text} data-status={love.status}>
                                 <span>{love.text}</span>
                                 <span className="rt-guest-love-status">
-                                    {STATUS[love.status]}
+                                    {love.status === 'pending' && (
+                                        <span
+                                            className="rt-spinner"
+                                            aria-hidden="true"
+                                        />
+                                    )}
+                                    {love.status === 'resolved' && love.as
+                                        ? love.place
+                                            ? `Got it: music from ${love.as}`
+                                            : `Got it: ${love.as}`
+                                        : STATUS[love.status]}
                                 </span>
                             </li>
                         ))}
                     </ul>
+                    <button
+                        type="button"
+                        className="rt-guest-change"
+                        onClick={() => setEditing(true)}
+                    >
+                        Change my name or loves
+                    </button>
 
                     {song ? (
                         <section className="rt-guest-song">
@@ -74,11 +149,11 @@ export default function Guest({ event, guest, song, reading }: Props) {
                             </p>
                         </section>
                     ) : (
-                        <p className="rt-guest-lede">
+                        <Loading>
                             {reading
                                 ? 'The DJ is reading your loves…'
                                 : 'The DJ is fitting you into the set. Your song shows up here.'}
-                        </p>
+                        </Loading>
                     )}
                 </div>
             </main>

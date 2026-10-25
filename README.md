@@ -65,6 +65,10 @@ php artisan roomtone:resolve-videos DEMO                 # find YouTube videos f
 
 YouTube allows about 100 searches a day. Each track is looked up once and remembered.
 
+## Deploy
+
+One Docker container (FrankenPHP: PHP with Caddy) runs the site, the queue worker, Reverb and the scheduler, with SQLite on a disk. `docker compose up` runs it locally; `render.yaml` deploys it to Render. See [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Tests
 
 ```bash

@@ -19,6 +19,10 @@ class HostRequestController extends Controller
 
         abort_unless($event->isHostKey($request->validated('key')), 403);
 
+        if ($event->hasEnded()) {
+            return back()->withErrors(['text' => 'This party has ended.']);
+        }
+
         if ($event->hostRequests()->where('status', RequestStatus::Pending)->where('created_at', '>', now()->subMinutes(5))->exists()) {
             return back()->withErrors(['text' => 'Still working on the last one.']);
         }
