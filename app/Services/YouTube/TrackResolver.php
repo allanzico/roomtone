@@ -21,7 +21,12 @@ class TrackResolver
         // Talent shows, TV and stage recordings: the song with a host talking over it, a jury, applause.
         'the voice', 'blind audition', 'blind auditions', 'audition', 'auditions', 'x factor', 'idol', 'got talent',
         'knockout', 'sing off', 'finale', 'episode', 'season', 'concert', 'festival', 'tiny desk', 'session', 'sessions',
-        'unplugged', 'rehearsal', 'soundcheck', 'interview', 'behind the scenes', 'making of', 'performs', 'snl'];
+        'unplugged', 'rehearsal', 'soundcheck', 'interview', 'behind the scenes', 'making of', 'performs', 'snl',
+        // Talk: podcasts and the like, where the song is only mentioned.
+        'podcast', 'talk show', 'vlog', 'documentary', 'review'];
+
+    private const TALK_ABOUT_SONG = ['controversy', 'explains', 'discusses', 'talks about', 'story behind',
+        'meaning of', 'reacts to', 'reaction to', 'on the song', 'on his song', 'on her song'];
 
     /** A song is between a minute and a quarter of an hour: shorter is a snippet, longer a mix or a whole album. */
     private const MIN_SECONDS = 60;
@@ -141,14 +146,11 @@ class TrackResolver
      * ties because for many songs the version everyone knows is the one everyone plays.
      *
      * @param  list<array{id: string, title: string, channel: string}>  $videos
-     * @param  array<string, array{views: int, seconds: int}>  $meta  From YouTubeClient::inspect(): playable videos only.
+     * @param  array<string, array{title: string, channel: string, views: int, seconds: int}>  $meta  From YouTubeClient::inspect(): playable videos only.
      */
     private function best(array $videos, array $meta, string $artist, string $title): ?string
     {
-        // A length of 0 is unknown (YouTube gave none), not short.
-        $candidates = array_values(array_filter($videos, fn (array $video) => isset($meta[$video['id']])
-            && ($meta[$video['id']]['seconds'] === 0
-                || ($meta[$video['id']]['seconds'] >= self::MIN_SECONDS && $meta[$video['id']]['seconds'] <= self::MAX_SECONDS))));
+        $candidates = array_values(array_filter($videos, fn (array $video) => isset($meta[$video['id']]) && $this->lengthFits($meta[$video['id']]['seconds'])));
 
         usort($candidates, fn (array $a, array $b) => [$this->tier($b, $artist), $this->hasOfficial($b), $meta[$b['id']]['views']]
             <=> [$this->tier($a, $artist), $this->hasOfficial($a), $meta[$a['id']]['views']]);
@@ -190,6 +192,23 @@ class TrackResolver
     }
 
     /**
+     * Whether a stored pick still passes today's rules: this song, playable, and a song's length. Used to recheck
+     * old picks from the video's own data (videos.list), without spending a search.
+     *
+     * @param  array{title: string, channel: string, seconds: int}  $meta
+     */
+    public function stillFits(string $artist, string $title, array $meta): bool
+    {
+        return $this->lengthFits($meta['seconds']) && $this->isTheSong(['id' => '', 'title' => $meta['title'], 'channel' => $meta['channel']], $artist, $title);
+    }
+
+    /** A length of 0 is unknown (YouTube gave none), not short. */
+    private function lengthFits(int $seconds): bool
+    {
+        return $seconds === 0 || ($seconds >= self::MIN_SECONDS && $seconds <= self::MAX_SECONDS);
+    }
+
+    /**
      * @param  array{id: string, title: string, channel: string}  $video
      */
     private function isTheSong(array $video, string $artist, string $title): bool
@@ -204,7 +223,20 @@ class TrackResolver
         // The artist's own channel, or an upload named "Artist - Song". The name anywhere in the title is not enough:
         // "Awen - Mystic Waters" otherwise matches a podcast episode called "... Awen of Water".
         $name = $this->plain($artist);
-        if (! str_contains($this->plain($video['channel']), $name) && ! str_starts_with($videoTitle, $name)) {
+        $artistChannel = str_contains($this->plain($video['channel']), $name);
+        if (! $artistChannel && ! str_starts_with($videoTitle, $name.' '.$song)) {
+            return false;
+        }
+
+        // "Pharrell Williams on Blurred Lines lyrics controversy" mentions the song but is an interview.
+        // Artist-owned clips can be commentary too, so reject editorial titles on every channel.
+        foreach (self::TALK_ABOUT_SONG as $phrase) {
+            if (str_contains($videoTitle, $phrase)) {
+                return false;
+            }
+        }
+
+        if (str_starts_with($videoTitle, $name.' on ')) {
             return false;
         }
 

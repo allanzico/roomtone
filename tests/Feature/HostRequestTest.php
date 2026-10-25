@@ -6,6 +6,8 @@ use App\Ai\Agents\RequestReader;
 use App\Enums\LoveStatus;
 use App\Enums\RequestStatus;
 use App\Enums\SetItemStatus;
+use App\Events\RoomUpdated;
+use App\Jobs\BuildSet;
 use App\Jobs\SteerSet;
 use App\Models\Event;
 use App\Models\Guest;
@@ -126,6 +128,28 @@ test('a mood request filters by Qloo\'s mood tag', function () {
     Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'v2/tags'));
 });
 
+test('a host request passes a resolved dish as a tag signal, including when it is the only love', function () {
+    $this->jake->loves()->update([
+        'raw_text' => 'Beef steak',
+        'qloo_entity_id' => 'urn:tag:specialty_dish:place:beef_steak',
+        'qloo_type' => 'tag',
+        'resolved_name' => 'Beef Steak',
+    ]);
+
+    RequestReader::fake([['genre' => null, 'mood' => 'calm', 'summary' => 'calm it down']]);
+    fakeRequestDj($this, [
+        ['artist' => 'Burna Boy', 'title' => 'Last Last', 'for_guest' => $this->maria->id],
+        ['artist' => 'Wizkid', 'title' => 'Essence', 'for_guest' => $this->jake->id],
+    ]);
+
+    app(RequestSteerer::class)->steer($this->event->hostRequests()->create(['text' => 'Calm it down']));
+
+    Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'qloo.test/v2/insights')
+        && str_contains(urldecode($r->url()), 'signal.interests.tags=urn:tag:specialty_dish:place:beef_steak')
+        && ! str_contains(urldecode($r->url()), 'signal.interests.entities=urn:tag:'));
+    expect($this->event->setItems()->whereNotNull('host_request_id')->count())->toBe(2);
+});
+
 test('a request with no genre or mood changes nothing and says what works', function () {
     RequestReader::fake([['genre' => null, 'mood' => 'none', 'summary' => 'play despacito']]);
     RequestDj::fake();
@@ -209,4 +233,33 @@ test('a failed request job tells the host to say it again', function () {
     (new SteerSet($request))->failed(new RuntimeException('boom'));
 
     expect($request->fresh()->status)->toBe(RequestStatus::Failed)->and($request->fresh()->reply)->toBe('I lost the thread. Say that again?');
+});
+
+test('when the queue runs low the set is refilled, at most once every ten minutes, and never after the end', function () {
+    Queue::fake();
+    $two = $this->event->setItems()->where('position', 3)->sole();
+
+    $this->postJson('/e/REQ001/now-playing', ['key' => 'host-secret', 'item' => $two->id])->assertNoContent();
+    Queue::assertPushed(BuildSet::class, 1);
+
+    // The next track change inside the ten minutes does not build again.
+    $this->event->setItems()->where('position', 3)->update(['status' => SetItemStatus::Queued]);
+    $this->postJson('/e/REQ001/now-playing', ['key' => 'host-secret', 'item' => $two->id])->assertNoContent();
+    Queue::assertPushed(BuildSet::class, 1);
+
+    Cache::flush();
+    $this->event->update(['ended_at' => now()]);
+    $this->event->setItems()->where('position', 3)->update(['status' => SetItemStatus::Queued]);
+    $this->postJson('/e/REQ001/now-playing', ['key' => 'host-secret', 'item' => $two->id])->assertNoContent();
+    Queue::assertPushed(BuildSet::class, 1);
+});
+
+test('guests\' pages are told when the playing track changes', function () {
+    Queue::fake();
+    Illuminate\Support\Facades\Event::fake([RoomUpdated::class]);
+    $two = $this->event->setItems()->where('position', 3)->sole();
+
+    $this->postJson('/e/REQ001/now-playing', ['key' => 'host-secret', 'item' => $two->id])->assertNoContent();
+
+    Illuminate\Support\Facades\Event::assertDispatched(RoomUpdated::class, fn ($e) => $e->code === 'REQ001');
 });

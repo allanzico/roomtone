@@ -10,7 +10,7 @@ COMPOSE  ?= docker compose
 SKIP_TESTS ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help clear clear-app-cache install frontend rebuild test check image up deploy logs
+.PHONY: help clear clear-app-cache install frontend rebuild test check image up deploy fresh logs
 
 help: ## List the tasks
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -31,20 +31,22 @@ install: ## Install PHP and JS dependencies exactly as locked
 	npm ci
 
 frontend: ## Build the front end (client and SSR bundles; also regenerates the Wayfinder routes)
-	php artisan wayfinder:generate
+	php artisan wayfinder:generate --with-form
 	npm run build:ssr
 
 rebuild: clear install frontend ## Clear caches, reinstall dependencies, rebuild the front end, migrate
 	composer dump-autoload --no-interaction
 	php artisan migrate --force
+	php artisan roomtone:recheck-videos
 
 test: ## Run the Pest suite
 	php artisan test
 
-check: ## Pint, TypeScript and the JS linter, without changing files
+check: ## PHPStan, Pint, TypeScript and the JS linter, without changing files
+	vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 	vendor/bin/pint --test
 	npm run types:check
-	npx vp check
+	npx vp lint
 
 image: ## Build the Docker image from scratch (no layer cache; it builds the front end itself)
 	$(COMPOSE) build --no-cache
@@ -59,6 +61,11 @@ up: ## Recreate the container from the image and wait until it answers
 
 deploy: $(if $(SKIP_TESTS),,test) rebuild image up ## Tests, full rebuild, fresh Docker image, restart (SKIP_TESTS=1 skips the tests)
 	@echo 'Deployed: http://localhost'
+
+fresh: ## DELETE the container's data (its database volume: events, guests, cached Qloo answers), then start clean
+	@printf 'This deletes everything stored in the Docker volume. Type yes to go on: ' && read answer && [ "$$answer" = yes ]
+	$(COMPOSE) down -v
+	$(MAKE) up
 
 logs: ## Follow the container's logs
 	$(COMPOSE) logs -f app

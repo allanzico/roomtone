@@ -176,6 +176,64 @@ test('energy and bpm must be in range', function (int $energy, int $bpm) {
     expect($v->log())->toBe(['bad_range']);
 })->with([[0, 100], [6, 100], [3, 39], [3, 221]]);
 
+test('a peak plan reserves most slots for energetic Qloo results', function () {
+    $entry = fn (string $name) => ['id' => $name, 'name' => $name, 'songs' => ['Hit'], 'rank' => 1];
+    $v = new SetValidator(
+        guests: [1 => 'Guest'],
+        loves: [
+            1 => ['id' => 1, 'guest_id' => 1, 'text' => 'Amsterdam', 'pool' => [$entry('Ordinary'), $entry('Another')]],
+            SetValidator::BLEND_BASE + 1 => ['id' => SetValidator::BLEND_BASE + 1, 'guest_id' => 1, 'text' => 'all loves', 'blend' => true, 'pool' => [$entry('Blend')]],
+            SetValidator::ENERGETIC_BASE + 1 => ['id' => SetValidator::ENERGETIC_BASE + 1, 'guest_id' => 1, 'text' => 'energetic', 'mood' => 'energetic',
+                'pool' => array_map($entry, ['Dance A', 'Dance B', 'Dance C', 'Dance D'])],
+        ],
+        typed: [], target: 5, energyTargets: [5, 5, 5, 5, 5],
+    );
+    $add = fn (string $artist, int $love, int $energy) => $v->add([
+        'artist' => $artist, 'title' => 'Hit', 'for_guest' => 1, 'love' => $love, 'energy' => $energy, 'bpm' => 125,
+    ]);
+
+    expect($add('Blend', SetValidator::BLEND_BASE + 1, 5)['accepted'])->toBeTrue();
+    expect($add('Ordinary', 1, 5)['accepted'])->toBeFalse();
+    expect($v->log())->toBe(['ok', 'mood_quota']);
+    expect($add('Dance A', SetValidator::ENERGETIC_BASE + 1, 2)['accepted'])->toBeFalse();
+    expect($v->log()[2])->toBe('mood_energy');
+    foreach (['Dance A', 'Dance B', 'Dance C', 'Dance D'] as $artist) {
+        expect($add($artist, SetValidator::ENERGETIC_BASE + 1, 5)['accepted'])->toBeTrue();
+    }
+    expect($v->complete())->toBeTrue();
+});
+
+test('a matching mood pick can serve a guest before their blend', function () {
+    $entry = fn (string $name) => ['id' => $name, 'name' => $name, 'songs' => ['Hit'], 'rank' => 1];
+    $v = new SetValidator(
+        guests: [1 => 'Guest'],
+        loves: [
+            SetValidator::BLEND_BASE + 1 => ['id' => SetValidator::BLEND_BASE + 1, 'guest_id' => 1, 'text' => 'all loves', 'blend' => true, 'pool' => [$entry('Blend')]],
+            SetValidator::ENERGETIC_BASE + 1 => ['id' => SetValidator::ENERGETIC_BASE + 1, 'guest_id' => 1, 'text' => 'energetic', 'mood' => 'energetic', 'pool' => [$entry('Dance')]],
+        ],
+        typed: [], target: 2, energyTargets: [5, 5],
+    );
+
+    expect($v->add(['artist' => 'Dance', 'title' => 'Hit', 'for_guest' => 1, 'love' => SetValidator::ENERGETIC_BASE + 1, 'energy' => 5, 'bpm' => 125])['accepted'])->toBeTrue();
+});
+
+test('a reused recording keeps its measured energy across different plans', function () {
+    $entry = ['id' => 'a', 'name' => 'Known Act', 'songs' => ['Slow Song'], 'rank' => 1];
+    $loves = [1 => ['id' => 1, 'guest_id' => 1, 'text' => 'A show', 'pool' => [$entry]],
+        SetValidator::ENERGETIC_BASE + 1 => ['id' => SetValidator::ENERGETIC_BASE + 1, 'guest_id' => 1,
+            'text' => 'energetic', 'mood' => 'energetic', 'pool' => [$entry]]];
+    $v = new SetValidator(
+        guests: [1 => 'Guest'], loves: $loves, typed: [], target: 2, energyTargets: [5, 5],
+        storedMeasurements: fn () => ['energy' => 2, 'bpm' => 85],
+    );
+    $args = ['artist' => 'Known Act', 'title' => 'Slow Song', 'for_guest' => 1, 'energy' => 5, 'bpm' => 140];
+
+    expect($v->add([...$args, 'love' => SetValidator::ENERGETIC_BASE + 1])['accepted'])->toBeFalse();
+    expect($v->log())->toBe(['mood_energy']);
+    expect($v->add([...$args, 'love' => 1])['accepted'])->toBeTrue();
+    expect($v->accepted()[0])->toMatchArray(['energy' => 2, 'bpm' => 85]);
+});
+
 test('a full set takes no more tracks', function () {
     $v = djValidator(target: 2);
     $v->add(djTrack());

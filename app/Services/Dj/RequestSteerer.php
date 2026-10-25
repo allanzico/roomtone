@@ -136,15 +136,18 @@ class RequestSteerer
         $pools = [];
 
         foreach ($loves as $guestId => $guestLoves) {
-            $entities = array_values(array_filter($guestLoves->pluck('qloo_entity_id')->all(), 'is_string'));
+            $entities = array_values($guestLoves->filter(fn (GuestLove $love) => $love->qloo_type !== 'tag' && is_string($love->qloo_entity_id))
+                ->pluck('qloo_entity_id')->all());
+            $signalTags = array_values($guestLoves->filter(fn (GuestLove $love) => $love->qloo_type === 'tag' && is_string($love->qloo_entity_id))
+                ->pluck('qloo_entity_id')->all());
             $location = $guestLoves->firstWhere('qloo_type', 'location')?->resolved_name;
 
-            if ($entities === [] && $location === null) {
+            if ($entities === [] && $signalTags === [] && $location === null) {
                 continue;
             }
 
             try {
-                $artists = $this->qloo->artists($entities, $location, $tags, self::PER_GUEST);
+                $artists = $this->qloo->artists($entities, $location, $tags, self::PER_GUEST, $signalTags);
             } catch (QlooException $e) {
                 if ($e->getCode() >= 400 && $e->getCode() < 500 && $e->getCode() !== 429) {
                     continue;

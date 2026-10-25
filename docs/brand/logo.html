@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Roomtone logo (Devpost, 3:2)</title>
+<!-- Rendered to docs/brand/roomtone-devpost-logo.png (1500×1000) with headless Chrome; see docs/brand/README.md. -->
+<style>
+  @font-face {
+    font-family: "Bricolage Grotesque";
+    src: url("../../resources/fonts/bricolage-grotesque/BricolageGrotesque-latin.woff2") format("woff2");
+    font-weight: 200 800;
+    font-stretch: 75% 100%;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1500px; height: 1000px; overflow: hidden; background: #020203; }
+  .frame {
+    position: relative; width: 1500px; height: 1000px; overflow: hidden;
+    background: radial-gradient(ellipse 70% 90% at 70% 45%, #14142a 0%, #07070f 55%, #020203 100%);
+    font-family: "Bricolage Grotesque", sans-serif; color: #fff;
+  }
+  svg.scene { position: absolute; inset: 0; }
+  .words { position: absolute; left: 110px; top: 0; bottom: 0; width: 700px; display: flex; flex-direction: column; justify-content: center; }
+  .name { font-size: 176px; line-height: 0.95; font-weight: 700; font-stretch: 100%; letter-spacing: -0.012em; margin: 0; font-variation-settings: "opsz" 96; }
+  .line { margin: 38px 0 0; font-size: 40px; line-height: 1.25; font-weight: 400; color: rgba(255,255,255,.72); max-width: 600px; }
+  .tag { margin: 34px 0 0; font-size: 26px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #ff8a3d; }
+</style>
+<div class="frame">
+  <svg class="scene" viewBox="0 0 1500 1000" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="g1" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#ffe0c2"/><stop offset=".4" stop-color="#ff8a3d"/><stop offset="1" stop-color="#c7420f"/></radialGradient>
+      <radialGradient id="g2" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#ffb3f0"/><stop offset=".45" stop-color="#ff4fd8"/><stop offset="1" stop-color="#c21fa0"/></radialGradient>
+      <radialGradient id="g3" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#b3c8ff"/><stop offset=".45" stop-color="#4c7dff"/><stop offset="1" stop-color="#2a4fd0"/></radialGradient>
+      <radialGradient id="g4" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#c8fff0"/><stop offset=".45" stop-color="#35e8b0"/><stop offset="1" stop-color="#14a37b"/></radialGradient>
+      <filter id="haze" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="46"/></filter>
+      <filter id="soft"><feGaussianBlur stdDeviation="1.2"/></filter>
+    </defs>
+    <g id="stars"></g>
+    <g transform="translate(78,0)">
+
+    <!-- haze behind each island -->
+    <g filter="url(#haze)" opacity=".55">
+      <circle cx="1040" cy="470" r="190" fill="#ff8a3d"/>
+      <circle cx="1275" cy="270" r="105" fill="#ff4fd8"/>
+      <circle cx="880" cy="760" r="120" fill="#4c7dff"/>
+      <circle cx="1290" cy="730" r="95" fill="#35e8b0"/>
+    </g>
+
+    <!-- islands: area follows how many guests are in each genre -->
+    <path d="M1040 290c92-10 170 62 168 160-2 96-82 160-176 150-92-10-152-80-146-162 6-80 62-140 154-148z" fill="url(#g1)"/>
+    <path d="M1272 178c58-4 106 40 104 98-2 56-48 94-106 90-56-4-90-44-86-96 4-50 34-88 88-92z" fill="url(#g2)"/>
+    <path d="M880 630c62-6 116 36 116 94 0 60-52 104-114 100-60-4-100-46-96-100 4-52 40-88 94-94z" fill="url(#g3)"/>
+    <path d="M1290 660c46-2 82 30 82 74 0 46-38 78-84 76-44-2-72-34-70-76 2-40 28-72 72-74z" fill="url(#g4)"/>
+
+    <!-- guests: white points, and the ripples a song sends out from them -->
+    <g fill="none" stroke="#fff">
+      <circle cx="1112" cy="392" r="46" stroke-opacity=".55" stroke-width="3"/>
+      <circle cx="1112" cy="392" r="92" stroke-opacity=".28" stroke-width="2.5"/>
+      <circle cx="1112" cy="392" r="146" stroke-opacity=".14" stroke-width="2"/>
+      <circle cx="1292" cy="262" r="36" stroke-opacity=".5" stroke-width="2.5"/>
+      <circle cx="1292" cy="262" r="70" stroke-opacity=".22" stroke-width="2"/>
+      <circle cx="900" cy="716" r="34" stroke-opacity=".5" stroke-width="2.5"/>
+      <circle cx="900" cy="716" r="68" stroke-opacity=".2" stroke-width="2"/>
+      <circle cx="1300" cy="736" r="30" stroke-opacity=".45" stroke-width="2.5"/>
+    </g>
+    <g fill="#fff">
+      <circle cx="1112" cy="392" r="12"/><circle cx="1292" cy="262" r="9"/><circle cx="900" cy="716" r="9"/><circle cx="1300" cy="736" r="8"/>
+      <circle cx="1000" cy="520" r="6"/><circle cx="1068" cy="470" r="5"/><circle cx="960" cy="440" r="5"/><circle cx="1262" cy="296" r="5"/><circle cx="868" cy="752" r="5"/><circle cx="1262" cy="764" r="5"/>
+    </g>
+    </g>
+  </svg>
+  <div class="words">
+    <h1 class="name">Roomtone</h1>
+    <p class="line">A shared soundtrack built from what everyone loves.</p>
+    <p class="tag">Every song has a reason</p>
+  </div>
+</div>
+<script>
+  // Deterministic stars, so the logo renders the same every time.
+  let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const g = document.getElementById("stars");
+  for (let i = 0; i < 150; i++) {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", (rnd() * 1500).toFixed(1)); c.setAttribute("cy", (rnd() * 1000).toFixed(1));
+    c.setAttribute("r", (0.6 + rnd() * 1.4).toFixed(2)); c.setAttribute("fill", "#fff");
+    c.setAttribute("opacity", (0.15 + rnd() * 0.55).toFixed(2)); g.appendChild(c);
+  }
+</script>

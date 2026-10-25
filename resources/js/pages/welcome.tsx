@@ -1,19 +1,10 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import type { FormEvent } from 'react';
+import { Head, Link } from '@inertiajs/react';
 import { Starfield } from '@/room/Starfield';
-import { store as tryDemo } from '@/routes/demo';
 import { setup } from '@/routes';
 import '../../css/tokens.css';
 import '@/room/room.css';
 
 export default function Welcome() {
-    const form = useForm<{ demo?: string }>({});
-
-    const start = (event: FormEvent) => {
-        event.preventDefault();
-        form.post(tryDemo.url());
-    };
-
     return (
         <>
             <Head title="Roomtone" />
@@ -32,30 +23,15 @@ export default function Welcome() {
                         music with Qloo, gives everyone a song, and tells the
                         room why each one is playing.
                     </p>
-                    <form onSubmit={start} className="rt-landing-cta">
-                        <button
-                            type="submit"
-                            className="rt-start-button"
-                            disabled={form.processing}
-                        >
-                            {form.processing
-                                ? 'Opening the room…'
-                                : 'Try a demo party'}
-                        </button>
-                        <Link href={setup.url()} className="rt-landing-link">
-                            Or start your own room
+                    <div className="rt-landing-cta">
+                        <Link href={setup.url()} className="rt-start-button">
+                            Start your room
                         </Link>
                         <p className="rt-start-note">
-                            Your own copy of a 16-guest rooftop party. Ask the
-                            DJ for &ldquo;more Afrobeats&rdquo; or to
-                            &ldquo;calm it down&rdquo;.
+                            Talk to the DJ, put the screen up, and let your
+                            guests scan in.
                         </p>
-                        {form.errors.demo && (
-                            <p className="rt-landing-error" role="alert">
-                                {form.errors.demo}
-                            </p>
-                        )}
-                    </form>
+                    </div>
                 </div>
             </main>
         </>

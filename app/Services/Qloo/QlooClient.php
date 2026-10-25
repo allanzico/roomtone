@@ -17,11 +17,10 @@ use InvalidArgumentException;
  * What we learned the hard way (see CLAUDE.md "Qloo API notes"):
  * - /search is lexical and mixed-type, so it returns candidates for the agent to choose from, not an answer.
  * - Localities and destinations are rejected as insight signals; cities go in as `location` text instead.
- * - Food and dish tags are silently ignored as artist signals; a restaurant entity works as a loose bridge.
+ * - Many food and dish tags are silently ignored as artist signals; GuestResolver checks against a baseline.
  * - Mood steering works with the `style:qloo` tags below; `genre:music:{upbeat,danceable,chill}` returns junk.
  *
- * Responses are cached forever in the app cache (the Qloo terms allow private server-side caching). Failures are
- * never cached.
+ * Only the response fields this app uses are cached in the private server-side app cache. Failures are never cached.
  *
  * Qloo answers HTTP 429 at about 4 parallel calls, so every real call (not cache hits) takes one of CONCURRENCY
  * slots, shared by all workers through cache locks, and a 429 is retried with a growing wait.
@@ -105,11 +104,12 @@ class QlooClient
      *
      * @param  list<string>  $entityIds  Signals from candidates() with kind "entity".
      * @param  list<string>  $tags  Steering filters, e.g. MOODS values or ids from tags().
+     * @param  list<string>  $signalTags  Tags as a taste signal (a dish or cuisine): only some work, see foodSignal().
      * @return list<array{id: string, name: string, popularity: float, songs: list<string>, tags: list<string>, genres: list<string>}>
      */
-    public function artists(array $entityIds = [], ?string $location = null, array $tags = [], int $take = 25): array
+    public function artists(array $entityIds = [], ?string $location = null, array $tags = [], int $take = 25, array $signalTags = []): array
     {
-        if ($entityIds === [] && ($location === null || trim($location) === '') && $tags === []) {
+        if ($entityIds === [] && ($location === null || trim($location) === '') && $tags === [] && $signalTags === []) {
             throw new InvalidArgumentException('Give at least one entity, location or tag.');
         }
 
@@ -117,6 +117,10 @@ class QlooClient
 
         if ($entityIds !== []) {
             $params['signal.interests.entities'] = $this->csv($entityIds);
+        }
+
+        if ($signalTags !== []) {
+            $params['signal.interests.tags'] = $this->csv($signalTags);
         }
 
         if ($location !== null && trim($location) !== '') {
@@ -150,6 +154,7 @@ class QlooClient
         return match ($kind) {
             'entity' => $this->artists([$value], take: $take),
             'location' => $this->artists(location: $value, take: $take),
+            'tag' => $this->artists(take: $take, signalTags: [$value]),
             default => throw new InvalidArgumentException("Unknown signal kind: {$kind}"),
         };
     }
@@ -172,17 +177,83 @@ class QlooClient
     }
 
     /**
+     * Food and dish tags for something a guest typed ("burger", "beef steak"): cuisine, specialty dish and menu
+     * highlight tags, in Qloo's order.
+     *
+     * @return list<array{id: string, name: string}>
+     */
+    public function foodTags(string $query, int $take = 8): array
+    {
+        /** @var list<array<string, mixed>> $tags */
+        $tags = $this->get('/v2/tags', ['filter.query' => trim($query), 'take' => $take])['results']['tags'] ?? [];
+
+        return array_values(array_map(
+            fn (array $tag) => ['id' => (string) $tag['id'], 'name' => (string) $tag['name']],
+            array_filter($tags, fn (array $tag) => preg_match('/^urn:tag:(cuisine|specialty_dish|menu_highlight):/', (string) $tag['id']) === 1),
+        ));
+    }
+
+    /**
+     * A tag Qloo does not know. As a signal it returns Qloo's default list, which is what a tag that Qloo ignores
+     * returns too: a tag is a real signal only when its artists differ from this baseline.
+     */
+    public const IGNORED_TAG = 'urn:tag:cuisine:qloo:zzzzzz';
+
+    /**
      * @param  array<string, scalar>  $params
      * @return array<string, mixed>
      */
     private function get(string $path, array $params): array
     {
         ksort($params);
+        $key = 'qloo:'.sha1($path.'?'.http_build_query($params));
+
+        // Existing installations may have full responses under this key. Trim them on their next read without
+        // spending Qloo quota again.
+        $cached = Cache::get($key);
+        if (is_array($cached)) {
+            $needed = $this->neededFields($path, $cached);
+            if ($needed !== $cached) {
+                Cache::forever($key, $needed);
+            }
+
+            return $needed;
+        }
 
         return Cache::rememberForever(
-            'qloo:'.sha1($path.'?'.http_build_query($params)),
-            fn () => $this->request($path, $params),
+            $key,
+            fn () => $this->neededFields($path, $this->request($path, $params)),
         );
+    }
+
+    /**
+     * Keep only the response data needed to resolve interests and build artist pools. Qloo can return much larger
+     * entity records (biographies, links, images, etc.) that Roomtone never uses.
+     *
+     * @param  array<string, mixed>  $response
+     * @return array<string, mixed>
+     */
+    private function neededFields(string $path, array $response): array
+    {
+        if ($path === '/search') {
+            return ['results' => array_map(fn (array $item) => array_intersect_key($item, array_flip(['entity_id', 'name', 'types'])), (array) ($response['results'] ?? []))];
+        }
+
+        if ($path === '/v2/tags') {
+            return ['results' => ['tags' => array_map(fn (array $tag) => array_intersect_key($tag, array_flip(['id', 'name'])), (array) ($response['results']['tags'] ?? []))]];
+        }
+
+        if ($path === '/v2/insights') {
+            return ['results' => ['entities' => array_map(fn (array $entity) => [
+                'entity_id' => $entity['entity_id'],
+                'name' => $entity['name'],
+                'popularity' => $entity['popularity'] ?? 0,
+                'properties' => ['notable_songs' => $entity['properties']['notable_songs'] ?? []],
+                'tags' => array_map(fn (array $tag) => array_intersect_key($tag, array_flip(['name', 'type'])), (array) ($entity['tags'] ?? [])),
+            ], (array) ($response['results']['entities'] ?? []))]];
+        }
+
+        return [];
     }
 
     /**

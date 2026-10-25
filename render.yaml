@@ -6,6 +6,7 @@ services:
   - type: web
     name: roomtone
     runtime: docker
+    branch: main
     dockerfilePath: ./docker/Dockerfile
     plan: starter
     region: frankfurt
@@ -42,6 +43,9 @@ services:
         value: database
       - key: SESSION_SECURE_COOKIE
         value: "true"
+      # A party can run for hours between page loads: keep the host screen's session for 12 hours.
+      - key: SESSION_LIFETIME
+        value: "720"
       - key: CACHE_STORE
         value: database
       - key: QUEUE_CONNECTION

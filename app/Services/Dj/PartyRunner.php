@@ -9,8 +9,7 @@ use Illuminate\Support\Str;
 use Laravel\Ai\Responses\Data\TextUsage;
 
 /**
- * Creates a party from a file of guests and resolves everyone at once (stage 1), for roomtone:party and the
- * demo build. Party files hold fictional guests only, never Qloo data.
+ * Creates a party from a file of guests and resolves everyone at once (stage 1), for roomtone:party. Party files hold fictional guests only, never Qloo data.
  *
  * @phpstan-type PartyFile array{name: string, occasion?: string, guests: list<array{name: string, loves: list<string>}>}
  */

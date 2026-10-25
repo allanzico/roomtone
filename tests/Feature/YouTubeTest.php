@@ -7,11 +7,11 @@ use App\Models\Track;
 use App\Services\YouTube\TrackResolver;
 use App\Services\YouTube\YouTubeClient;
 use App\Services\YouTube\YouTubeException;
-use Database\Seeders\DemoPartySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\RooftopSeeder;
 
 uses(RefreshDatabase::class);
 
@@ -73,7 +73,7 @@ test('playable keeps public, processed, embeddable videos in the order asked', f
     ]])]);
 
     expect(app(YouTubeClient::class)->playable(['a', 'b', 'c', 'd']))->toBe(['a', 'c']);
-    Http::assertSent(fn (Request $r) => $r['id'] === 'a,b,c,d' && $r['part'] === 'status,statistics,contentDetails');
+    Http::assertSent(fn (Request $r) => $r['id'] === 'a,b,c,d' && $r['part'] === 'snippet,status,statistics,contentDetails');
 });
 
 test('a used-up search quota stops searching until midnight Pacific time', function () {
@@ -100,6 +100,8 @@ test('the daily search bucket answering 429 also stops searching until midnight 
         'details' => [['@type' => 'type.googleapis.com/google.rpc.ErrorInfo', 'metadata' => ['quota_limit' => 'defaultSearchListPerDayPerProject']]],
     ]], 429)]);
     $youtube = app(YouTubeClient::class);
+    // Pinned to mid-morning Pacific: two hours later must still be before the midnight reset, whatever the real clock.
+    $this->travelTo(now('America/Los_Angeles')->setTime(10, 0));
 
     expect(fn () => $youtube->search('a'))->toThrow(YouTubeException::class, '429');
     $this->travel(2)->hours();
@@ -182,6 +184,15 @@ test('a fan upload named "Artist - Song" is accepted when nothing official is fo
     expect(app(TrackResolver::class)->resolve('Tems', ['Free Mind'])->youtube_video_id)->toBe('fan');
 });
 
+test('an interview about a song is rejected in favour of a recording', function () {
+    fakeYouTube(['Blurred Lines' => [
+        video('talk', 'Pharrell Williams on Blurred Lines lyrics controversy', 'Pharrell Williams'),
+        video('song', 'Pharrell Williams - Blurred Lines (Official Audio)', 'Pharrell Williams - Topic'),
+    ]], views: ['talk' => 1000000, 'song' => 100]);
+
+    expect(app(TrackResolver::class)->resolve('Pharrell Williams', ['Blurred Lines'])->youtube_video_id)->toBe('song');
+});
+
 test('a title with no video falls back to the artist\'s next song, and both lookups are stored', function () {
     fakeYouTube([
         'Ghost Song' => [video('x', 'Someone Else - Other Song', 'Someone Else')],
@@ -244,8 +255,8 @@ test('the daily refresh keeps playable videos, drops dead ones and forgets old m
 });
 
 test('resolving a set finds videos once, swaps in a fallback track and skips played items', function () {
-    $this->seed(DemoPartySeeder::class);
-    $event = Event::query()->where('code', 'DEMO')->sole();
+    $this->seed(RooftopSeeder::class);
+    $event = Event::query()->where('code', 'ROOF01')->sole();
     $last = $event->setItems()->where('position', 1)->sole();
     $event->setItems()->where('position', 10)->update(['status' => SetItemStatus::Played]);
     fakeYouTube([
@@ -269,10 +280,10 @@ test('resolving a set finds videos once, swaps in a fallback track and skips pla
 });
 
 test('the resolve command reports how many tracks have a video', function () {
-    $this->seed(DemoPartySeeder::class);
+    $this->seed(RooftopSeeder::class);
     fakeYouTube(['Tems' => [video('tems', 'Tems - Free Mind', 'Tems')]]);
 
-    $this->artisan('roomtone:resolve-videos', ['code' => 'demo'])
+    $this->artisan('roomtone:resolve-videos', ['code' => 'roof01'])
         ->expectsOutput('1 of 10 tracks have a video.')
         ->assertSuccessful();
 });

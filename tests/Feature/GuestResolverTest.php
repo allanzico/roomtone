@@ -214,3 +214,75 @@ test('one signal makes no blend, and a food is never turned into a city', functi
         ->and($guest->loves()->orderBy('id')->get()[1]->status)->toBe(LoveStatus::Unresolved);
     expect((string) (new LovePicker)->instructions())->toContain('Never turn it into a city');
 });
+
+test('a city is used only when the guest\'s own words name it: burger is not Hamburg, pork is not Germany', function () {
+    $guest = guestWith(['burger', 'pork', 'Lisbon', 'New York']);
+    fakeQloo([
+        'burger' => [hit('loc9', 'Hamburg', 'locality')],
+        'Lisbon' => [hit('loc1', 'Lisbon', 'locality')],
+        'New York' => [hit('loc2', 'New York City', 'locality')],
+    ]);
+    LovePicker::fake([['picks' => [
+        ['love' => 1, 'use' => 'entity', 'id' => 'loc9', 'name' => null],
+        ['love' => 2, 'use' => 'location', 'id' => null, 'name' => 'Germany'],
+        ['love' => 3, 'use' => 'entity', 'id' => 'loc1', 'name' => null],
+        ['love' => 4, 'use' => 'entity', 'id' => 'loc2', 'name' => null],
+    ]]]);
+
+    app(GuestResolver::class)->resolve($guest);
+
+    $status = $guest->loves()->orderBy('id')->get()->map(fn ($l) => $l->status->value.':'.$l->resolved_name)->all();
+
+    expect($status)->toBe(['unresolved:', 'unresolved:', 'resolved:Lisbon', 'resolved:New York City']);
+});
+
+test('names() matches the words of a place, not its letters', function (string $text, string $place, bool $expected) {
+    expect(GuestResolver::names($text, $place))->toBe($expected);
+})->with([
+    ['Lisbon', 'Lisbon', true],
+    ['lisbon portugal', 'Lisbon', true],
+    ['york', 'New York', true],
+    ['Lisbonn', 'Lisbon', true],
+    ['Alfama', 'Alfama', true],
+    ['burger', 'Hamburg', false],
+    ['pork', 'Germany', false],
+    ['Alfama', 'Lisbon', false],
+    ['', 'Lisbon', false],
+]);
+
+test('a dish Qloo cannot read as an entity is read as a taste tag, only when the tag really changes Qloo\'s artists', function () {
+    $guest = guestWith(['beef steak', 'burger']);
+    Http::fake(function (Request $request) {
+        $url = urldecode($request->url());
+
+        if (str_contains($url, '/search')) {
+            return Http::response(['results' => []]);
+        }
+
+        if (str_contains($url, '/v2/tags')) {
+            return Http::response(['results' => ['tags' => str_contains($url, 'beef steak')
+                ? [['id' => 'urn:tag:specialty_dish:place:beef_steak', 'name' => 'Beef Steak'], ['id' => 'urn:tag:genre:place:x', 'name' => 'ignored type']]
+                : [['id' => 'urn:tag:cuisine:qloo:burger', 'name' => 'Burger']]]]);
+        }
+
+        // Insights: Qloo's default list for the unknown tag and for a tag it ignores; a real list for the steak.
+        $names = str_contains($url, 'beef_steak') ? ['Steak A', 'Steak B', 'Steak C', 'Steak D', 'Steak E']
+            : ['Default 1', 'Default 2', 'Default 3', 'Default 4', 'Default 5'];
+
+        return Http::response(['results' => ['entities' => array_map(fn ($n) => ['entity_id' => $n, 'name' => $n, 'properties' => ['notable_songs' => ["{$n} Song"]], 'tags' => []], $names)]]);
+    });
+    LovePicker::fake([['picks' => [
+        ['love' => 1, 'use' => 'none', 'id' => null, 'name' => null],
+        ['love' => 2, 'use' => 'none', 'id' => null, 'name' => null],
+    ]]]);
+
+    app(GuestResolver::class)->resolve($guest);
+
+    [$steak, $burger] = $guest->loves()->orderBy('id')->get()->all();
+
+    expect($steak->status)->toBe(LoveStatus::Resolved)
+        ->and($steak->qloo_type)->toBe('tag')
+        ->and($steak->qloo_entity_id)->toBe('urn:tag:specialty_dish:place:beef_steak')
+        ->and($steak->pool[0]['name'])->toBe('Steak A')
+        ->and($burger->status)->toBe(LoveStatus::Unresolved);
+});

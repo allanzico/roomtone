@@ -79,7 +79,8 @@ class JoinController extends Controller
         $item = $event->setItems()->with('track')
             ->where('reason_guest_id', $guest->id)
             ->whereIn('status', [SetItemStatus::Playing, SetItemStatus::Queued])
-            // Their blend track (the middle ground of all their loves) is their song; then whichever comes first.
+            // The track actually playing wins. For upcoming tracks, show their blend first, then the next one.
+            ->orderByRaw('case when status = ? then 0 else 1 end', [SetItemStatus::Playing->value])
             ->orderByRaw('(reason_love_id is null and host_request_id is null) desc')
             ->orderBy('position')->first();
         $playing = $event->setItems()->where('status', SetItemStatus::Playing)->value('position');
@@ -96,6 +97,8 @@ class JoinController extends Controller
                         ? $love->resolved_name : null,
                     // Read as a place: its music stands in for the love ("music from Rio de Janeiro").
                     'place' => $love->qloo_type === 'location',
+                    // Read through Qloo's taste for a dish or cuisine.
+                    'dish' => $love->qloo_type === 'tag',
                 ])->all(),
             ],
             'song' => $item === null ? null : [

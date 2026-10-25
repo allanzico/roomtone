@@ -121,17 +121,17 @@ class YouTubeClient
     }
 
     /**
-     * What a playable video is, for choosing between versions: its views and length. Only public, processed,
-     * embeddable videos are returned, keyed by id. One videos.list call (1 quota unit) per 50 ids.
+     * What a playable video is, for choosing between versions: its title, channel, views and length. Only public,
+     * processed, embeddable videos are returned, keyed by id. One videos.list call (1 quota unit) per 50 ids.
      *
      * @param  list<string>  $ids
-     * @return array<string, array{views: int, seconds: int}>
+     * @return array<string, array{title: string, channel: string, views: int, seconds: int}>
      */
     public function inspect(array $ids): array
     {
         $items = [];
         foreach (array_chunk(array_values(array_unique($ids)), 50) as $chunk) {
-            $items = [...$items, ...(array) ($this->get('videos', ['part' => 'status,statistics,contentDetails', 'id' => implode(',', $chunk)])['items'] ?? [])];
+            $items = [...$items, ...(array) ($this->get('videos', ['part' => 'snippet,status,statistics,contentDetails', 'id' => implode(',', $chunk)])['items'] ?? [])];
         }
 
         $ok = [];
@@ -146,6 +146,8 @@ class YouTubeClient
                 && ($status['privacyStatus'] ?? null) === 'public'
                 && ($status['uploadStatus'] ?? null) === 'processed') {
                 $ok[(string) $item['id']] = [
+                    'title' => html_entity_decode((string) ($item['snippet']['title'] ?? ''), ENT_QUOTES),
+                    'channel' => html_entity_decode((string) ($item['snippet']['channelTitle'] ?? ''), ENT_QUOTES),
                     'views' => (int) ($item['statistics']['viewCount'] ?? 0),
                     'seconds' => self::seconds((string) ($item['contentDetails']['duration'] ?? '')),
                 ];

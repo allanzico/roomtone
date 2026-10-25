@@ -10,8 +10,8 @@ use Closure;
  * what to fix, so the agent can retry from the message.
  *
  * @phpstan-type Pooled array{id: string, name: string, songs: list<string>, genres?: list<string>, rank: int}
- * @phpstan-type Love array{id: int, guest_id: int, text: string, pool: list<Pooled>, blend?: true}
- * @phpstan-type Accepted array{artist: string, title: string, qloo_artist_id: string, energy: int, bpm: int, for_guest_id: int, love_id: int, rank: int, reason: string, bridge: bool}
+ * @phpstan-type Love array{id: int, guest_id: int, text: string, pool: list<Pooled>, blend?: true, mood?: string}
+ * @phpstan-type Accepted array{artist: string, title: string, qloo_artist_id: string, energy: int, bpm: int, for_guest_id: int, love_id: int, rank: int, reason: string, bridge: bool, genres: list<string>|null}
  */
 class SetValidator
 {
@@ -20,6 +20,16 @@ class SetValidator
      * plus the guest's id. It has no guest_loves row.
      */
     public const BLEND_BASE = 1_000_000;
+
+    /** Qloo's calmer and more energetic artists for a guest's loves (the plan's low and high slots) are offered as loves with these ids plus the guest's id. */
+    public const CALM_BASE = 2_000_000;
+
+    public const ENERGETIC_BASE = 3_000_000;
+
+    public static function isMood(int $loveId): bool
+    {
+        return $loveId >= self::CALM_BASE;
+    }
 
     public readonly int $target;
 
@@ -35,13 +45,18 @@ class SetValidator
     /** @var array<string, true> Lower-cased artists already played or playing. */
     private array $used = [];
 
+    /** @var array{calm: int, energetic: int} Minimum number of tracks from Qloo's matching mood pools. */
+    private array $moodQuota = ['calm' => 0, 'energetic' => 0];
+
     /**
      * @param  array<int, string>  $guests  Every guest, id => name.
      * @param  array<int, Love>  $loves  Loves with a stored pool, by id.
      * @param  list<string>  $typed  Everything guests typed.
      * @param  list<string>  $usedArtists  Artists already played or playing at this event.
+     * @param  list<int>  $energyTargets  The host plan's target energy for each upcoming track.
      * @param  (Closure(string, string, list<string>): ?string)|null  $playableTitle  Given artist, title and the
      *                                                                                artist's other songs, the title that has a video, or null.
+     * @param  (Closure(string, string): ?array{energy: int, bpm: int})|null  $storedMeasurements
      */
     public function __construct(
         private array $guests,
@@ -50,6 +65,8 @@ class SetValidator
         int $target,
         array $usedArtists = [],
         private ?Closure $playableTitle = null,
+        array $energyTargets = [],
+        private ?Closure $storedMeasurements = null,
     ) {
         // Fewer slots than guests with pools would make the reserve rule reject every track.
         $this->target = max($target, count(array_unique(array_column($loves, 'guest_id'))));
@@ -60,6 +77,25 @@ class SetValidator
 
         foreach ($usedArtists as $artist) {
             $this->used[mb_strtolower($artist)] = true;
+        }
+
+        foreach (['calm' => fn (int $e) => $e <= 2, 'energetic' => fn (int $e) => $e >= 4] as $mood => $matches) {
+            $demand = count(array_filter($energyTargets, $matches));
+            $pool = array_filter($this->loves, fn (array $love) => ($love['mood'] ?? null) === $mood);
+            $artists = [];
+            foreach ($pool as $love) {
+                foreach ($love['pool'] as $artist) {
+                    $key = mb_strtolower($artist['name']);
+                    if (! isset($this->used[$key]) && ! isset($this->typed[$key]) && $artist['songs'] !== []) {
+                        $artists[$key] = true;
+                    }
+                }
+            }
+            $guestsWithoutPool = count(array_diff(
+                array_unique(array_column($this->loves, 'guest_id')),
+                array_unique(array_column($pool, 'guest_id')),
+            ));
+            $this->moodQuota[$mood] = min((int) ceil($demand * 0.8), count($artists), max(0, $this->target - $guestsWithoutPool));
         }
     }
 
@@ -147,13 +183,14 @@ class SetValidator
         $blendId = self::BLEND_BASE + $love['guest_id'];
 
         if ($forGuest === $love['guest_id'] && $loveId !== $blendId && isset($this->loves[$blendId])
+            && ! isset($love['mood'])
             && ! collect($this->accepted)->contains(fn (array $t) => $t['love_id'] === $blendId && $t['for_guest_id'] === $forGuest)) {
             return $this->reject('blend_first', "{$loveGuest}'s first track must come from love {$blendId}, the middle ground of all their loves ({$this->loves[$blendId]['text']}).");
         }
 
         // Round the guest's loves: one love can't get another of their tracks while another of theirs has fewer.
         // Bridges (a track for another guest) don't count.
-        $behind = $forGuest === $love['guest_id'] ? $this->lovesBehind($loveId) : [];
+        $behind = $forGuest === $love['guest_id'] && ! self::isMood($loveId) ? $this->lovesBehind($loveId) : [];
 
         if ($behind !== []) {
             return $this->reject('love_spread', "{$loveGuest} already has a track from love {$loveId} ({$love['text']}). Use their "
@@ -173,6 +210,27 @@ class SetValidator
             }
 
             $song = $playable;
+        }
+
+        // A reused song has one stored energy and tempo across rooms. The agent cannot relabel that same recording
+        // as calm in one party and peak in another just to fit the current plan.
+        $stored = $this->storedMeasurements === null ? null : ($this->storedMeasurements)($match['name'], $song);
+        if ($stored !== null) {
+            $energy = (int) $stored['energy'];
+            $bpm = (int) $stored['bpm'];
+        }
+
+        $mood = $love['mood'] ?? null;
+        if (($mood === 'energetic' && $energy < 4) || ($mood === 'calm' && $energy > 2)) {
+            return $this->reject('mood_energy', "A {$mood} list needs a song with matching energy. Pick another song or estimate its energy honestly.");
+        }
+
+        foreach ($this->moodQuota as $neededMood => $quota) {
+            $have = count(array_filter($this->accepted, fn (array $t) => ($this->loves[$t['love_id']]['mood'] ?? null) === $neededMood));
+            $remaining = $this->target - count($this->accepted) - 1;
+            if ($mood !== $neededMood && $quota - $have > $remaining) {
+                return $this->reject('mood_quota', "The host's energy plan still needs ".($quota - $have)." tracks from {$neededMood} lists. Pick from one of those lists now.");
+            }
         }
 
         // Name a second guest whose taste shares this artist: the one the agent chose, or another guest's love that
@@ -196,6 +254,7 @@ class SetValidator
             'reason' => $reason,
             // The reason names a second guest.
             'bridge' => $shared !== null,
+            'genres' => $match['genres'] ?? null,
         ];
         $this->log[] = 'ok';
 
@@ -206,6 +265,15 @@ class SetValidator
             'target' => $this->target,
             'guests_without_a_track' => $this->unservedIds(),
         ];
+    }
+
+    /**
+     * Stop requiring a guest's first track from their blend: when it has given nothing playable after several
+     * rounds, their own loves must be allowed to serve them.
+     */
+    public function dropBlend(int $guestId): void
+    {
+        unset($this->loves[self::BLEND_BASE + $guestId]);
     }
 
     /**
@@ -258,7 +326,7 @@ class SetValidator
 
         return array_values(array_filter(
             $this->loves,
-            fn (array $other) => $other['guest_id'] === $owner && $other['id'] !== $loveId && $count($other['id']) < $mine,
+            fn (array $other) => $other['guest_id'] === $owner && $other['id'] !== $loveId && ! self::isMood($other['id']) && $count($other['id']) < $mine,
         ));
     }
 

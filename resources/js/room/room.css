@@ -1254,7 +1254,8 @@
 }
 
 .rt-guest-love-status {
-    flex: none;
+    flex: 0 1 55%;
+    text-align: right;
     color: var(--rt-text-4);
     font-size: 14px;
 }

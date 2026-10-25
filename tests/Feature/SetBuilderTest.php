@@ -175,6 +175,7 @@ test('when the YouTube quota is used up, tracks are still accepted', function ()
 
     expect(app(SetBuilder::class)->build($this->event)['log'])->toBe(['ok']);
     expect(Track::where('artist', 'Brent Cobb')->sole()->youtube_video_id)->toBeNull();
+    expect($this->event->setItems()->where('status', SetItemStatus::Playing)->exists())->toBeFalse();
 });
 
 test('set target is about 1.2 tracks per guest with results, between 10 and 40', function () {
@@ -223,6 +224,8 @@ test('videos are found after the agent picks: a track with none in its first two
     $result = app(SetBuilder::class)->build($this->event);
 
     expect($result['log'])->toBe(['ok', 'ok', 'no_video'])
+        ->and($result['tracks'])->toBe(1)
+        ->and($result['unserved'])->toBe([$this->jake->id])
         ->and($result['youtube_lookups'])->toBe(2)
         ->and($this->event->setItems()->with('track')->get()->map(fn ($i) => $i->track->artist)->all())->toBe(['Brent Cobb'])
         ->and(Track::where('artist', 'Mariza')->whereNotNull('youtube_checked_at')->count())->toBe(2);
@@ -296,4 +299,80 @@ test('a song of an artist that already has a stored video is used, so no search 
 
     expect($this->event->setItems()->with('track')->get()->map(fn ($i) => $i->track->title)->all())->toBe(['Brent Cobb B-side']);
     Http::assertNotSent(fn ($r) => str_contains($r->url(), '/search'));
+});
+
+test('a guest whose blend gives nothing is served from their own loves after a few rounds', function () {
+    // The blend's only artist is already in the set for someone else, so it can never be placed.
+    $this->maria->update(['blend' => ['loves' => [], 'text' => 'Ozark + Lisbon', 'pool' => [
+        ['id' => 'q-Tems', 'name' => 'Tems', 'songs' => ['Tems Hit'], 'genres' => [], 'rank' => 1],
+    ]]]);
+    $blend = SetValidator::BLEND_BASE + $this->maria->id;
+    $ozark = loveId($this->maria, 'Ozark');
+    $jake = ['artist' => 'Tems', 'title' => 'Tems Hit', 'for_guest' => $this->jake->id, 'love' => loveId($this->jake, 'Dark')];
+    $own = ['artist' => 'Brent Cobb', 'title' => 'Brent Cobb Hit', 'for_guest' => $this->maria->id, 'love' => $ozark];
+
+    fakeDj($this, [[$jake, $own], [$own], [$own], [$own]]);
+    $result = app(SetBuilder::class)->build($this->event);
+
+    expect($result['unserved'])->toBe([])
+        ->and($this->event->setItems()->with('track')->get()->pluck('track.artist')->sort()->values()->all())->toBe(['Brent Cobb', 'Tems'])
+        ->and($result['log'])->toContain('blend_first');
+});
+
+test('the plan decides what Qloo is asked: calm and energetic lists for the low and high slots', function () {
+    config(['services.qloo.key' => 'test-key', 'services.qloo.url' => 'https://qloo.test']);
+    $this->maria->loves()->where('raw_text', 'Ozark')->update(['qloo_entity_id' => 'tv1', 'qloo_type' => 'tv_show', 'resolved_name' => 'Ozark']);
+    $this->event->update(['energy_plan' => ['timeline' => 'trip', 'minutes' => 60, 'points' => [['at' => 0, 'energy' => 1], ['at' => 15, 'energy' => 5]]]]);
+
+    Http::swap(new HttpFactory);
+    Http::fake(function (HttpRequest $request) {
+        $url = urldecode($request->url());
+
+        if (str_contains($url, 'qloo.test')) {
+            $name = str_contains($url, 'style:qloo:calm') ? 'Calmo' : 'Energo';
+
+            return Http::response(['results' => ['entities' => [['entity_id' => "q-{$name}", 'name' => $name, 'properties' => ['notable_songs' => ["{$name} Hit"]],
+                'tags' => [['id' => 'g', 'name' => 'Fado', 'type' => 'urn:tag:genre:qloo']]]]]]);
+        }
+
+        return Http::response(['items' => []]);
+    });
+    fakeDj($this, [[]]);
+
+    app(SetBuilder::class)->build($this->event);
+
+    DjAgent::assertPrompted(fn ($p) => $p->contains('CALM list for "Ozark (calm)": 1. Calmo')
+        && $p->contains('ENERGETIC list for "Ozark (energetic)": 1. Energo')
+        && $p->contains('fill slots wanting energy 1-2 from CALM lists'));
+    Http::assertSent(fn (HttpRequest $r) => str_contains(urldecode($r->url()), 'signal.interests.entities=tv1') && str_contains(urldecode($r->url()), 'filter.tags=urn:tag:style:qloo:calm'));
+    // Guests with no Qloo signal (Jake, Gran) cost no call: two moods, one guest.
+    Http::assertSentCount(2);
+});
+
+test('a plan with no low or high slots asks Qloo nothing extra', function () {
+    $this->maria->loves()->where('raw_text', 'Ozark')->update(['qloo_entity_id' => 'tv1', 'qloo_type' => 'tv_show']);
+    $this->event->update(['energy_plan' => ['timeline' => 'trip', 'minutes' => 60, 'points' => [['at' => 0, 'energy' => 3], ['at' => 60, 'energy' => 3]]]]);
+    fakeDj($this, [[]]);
+
+    app(SetBuilder::class)->build($this->event);
+
+    Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'qloo'));
+});
+
+test('a track remembers its artist\'s genres, and a calm-list pick is not tied to the guest\'s other loves', function () {
+    $this->maria->update(['blend' => null]);
+    $calm = SetValidator::CALM_BASE + $this->maria->id;
+    $validator = new SetValidator(
+        guests: [$this->maria->id => 'Maria'],
+        loves: [
+            $calm => ['id' => $calm, 'guest_id' => $this->maria->id, 'text' => 'Ozark (calm)', 'mood' => 'calm', 'pool' => [['id' => 'q1', 'name' => 'Calmo', 'songs' => ['Calmo Hit'], 'genres' => ['Fado'], 'rank' => 1]]],
+            1 => ['id' => 1, 'guest_id' => $this->maria->id, 'text' => 'Ozark', 'pool' => [['id' => 'q2', 'name' => 'Other', 'songs' => ['Other Hit'], 'rank' => 1]]],
+        ],
+        typed: [],
+        target: 10,
+    );
+
+    expect($validator->add(['artist' => 'Calmo', 'title' => 'Calmo Hit', 'for_guest' => $this->maria->id, 'love' => $calm, 'energy' => 2, 'bpm' => 80])['accepted'])->toBeTrue()
+        ->and($validator->accepted()[0]['genres'])->toBe(['Fado'])
+        ->and($validator->accepted()[0]['reason'])->toBe('because Maria loves Ozark (calm)');
 });
