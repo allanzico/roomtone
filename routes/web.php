@@ -23,9 +23,3 @@ Route::post('/e/{code}/requests', [HostRequestController::class, 'store'])->midd
 Route::post('/e/{code}/now-playing', NowPlayingController::class)->middleware('throttle:host-screen')->name('events.now-playing');
 Route::post('/e/{code}/end', EndPartyController::class)->middleware('throttle:host-screen')->name('events.end');
 Route::post('/e/{code}/unavailable', UnavailableVideoController::class)->middleware('throttle:host-screen')->name('events.unavailable');
-
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
-});
-
-require __DIR__.'/settings.php';

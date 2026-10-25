@@ -68,7 +68,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 
 ## Repo notes (added during Phase 1)
 
-- Starter kit as of Oct 2026: Laravel 13, Inertia v3, React 19, Tailwind 4, Fortify auth, Wayfinder, Vite+ (`vp`) for build/lint/format. `composer run dev` runs `php artisan dev` (server, queue, logs, Vite).
+- Starter kit as of Oct 2026: Laravel 13, Inertia v3, React 19, Tailwind 4, Wayfinder, Vite+ (`vp`) for build/lint/format. The kit's auth, settings, dashboard, sidebar layouts and shadcn components were deleted (no accounts); `laravel/fortify` and `laravel/passkeys` stay installed (Fortify brings `bacon/bacon-qr-code`, which draws the QR) but are in `composer.json`'s `dont-discover`, so they register no routes. `composer run dev` runs `php artisan dev` (server, queue, logs, Vite).
 - Tests are Pest 4 (converted from the kit's PHPUnit tests). Run `php artisan test`.
 - `HostRoom` is a full-screen Inertia page with no layout: see the `layout` switch in `resources/js/app.tsx`.
 - 3D room lives in `resources/js/room/`. `store.ts` (zustand) is the single source of client state; per-frame values (energy smoothing, orb positions) live in `room/live.ts`, outside React, so animation never re-renders components.
@@ -111,7 +111,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - Artists carry `notable_songs` and tags but no BPM, energy or per-result reason. Those come from the agent.
 - Insights calls take about 3.5–4.5s cold, so call them from queue jobs, not requests.
 
-## DJ agent design (validated by spikes, Oct 2026)
+## DJ agent design (validated by live experiments, Oct 2026)
 
 Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stage 1 per guest (queued job: one Haiku pick call per guest, per-love single-signal Qloo calls, stored pools), stage 2 picks only from stored pools through a validating `add_track` tool, code writes every "because X loves Y" reason, host requests use request pools, global cap of 3 concurrent Qloo calls with 429 retry. Haiku is the model. Reference scripts: `docs/spikes/` (their outputs hold Qloo data and must stay out of the repo).
 
@@ -168,24 +168,10 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 
 ## Deploy (Phase 3)
 
-- Hosting is **Render** (`render.yaml`: one Docker web service, `starter` plan, a 1 GB disk at `/var/roomtone`), with `roomtone.stackyard.io` through Cloudflare. Render serves HTTPS; the container speaks plain HTTP on `$PORT` (80 by default). Locally: `compose.yaml`, which reads the same `.env` as `composer run dev` and overrides what differs inside Docker (URL, database path, Reverb address, logs, SSR); http://localhost. Guide: `docs/DEPLOY.md`. Keep it this simple: no own TLS, no prod compose; `make deploy` only wraps the local Docker rebuild (Render deploys on push).
+- Hosting is **Render** (`render.yaml`: one Docker web service, `starter` plan, a 1 GB disk at `/var/roomtone`), with `roomtone.stackyard.io` through Cloudflare. Render serves HTTPS; the container speaks plain HTTP on `$PORT` (80 by default). Locally: `compose.yaml`, which reads the same `.env` as `composer run dev` and overrides what differs inside Docker (URL, database path, Reverb address, logs, SSR); http://localhost.  Steps: README "Deploy". Keep it this simple: no own TLS, no prod compose; `make deploy` only wraps the local Docker rebuild (Render deploys on push).
 - One container on purpose: SQLite is on one disk and a Render disk belongs to one service. `docker/start.sh` caches config, migrates (Render's pre-deploy command can't see the disk), keeps `queue:work`, `reverb:start` (127.0.0.1:8080) and `schedule:work` running in restart loops, then execs FrankenPHP. `docker/Caddyfile` proxies `/app/*` to Reverb; Reverb's `/apps` publish API stays internal.
 - `Makefile` (`make` lists the targets): `make rebuild` clears framework caches (not the app cache, which holds the Qloo answers and the YouTube quota flag: `make clear-app-cache`), reinstalls dependencies, rebuilds the front end and migrates; `make deploy` = tests + rebuild + `docker compose build --no-cache` + recreate and wait for `/up`.
 - Image: `dunglas/frankenphp:1-php8.4-alpine`, runs as root (the default). The build stage has PHP and Node (Vite runs Wayfinder's `php artisan`) and is never shipped. About 90 MB compressed.
 - Render passes service env vars to the build as build args; only `REVERB_APP_KEY` is used (it is public and fixed to `roomtone` in `render.yaml`: generated values are base64 and a `/` would break the socket URL). With no `VITE_REVERB_HOST` (Docker builds) `app.tsx` connects Echo to the page's own host, port and scheme.
 - `TRUSTED_PROXIES=*` (config `app.trusted_proxies`, applied in `AppServiceProvider` via `TrustProxies::at`) makes rate limits see real visitor IPs through Render and Cloudflare. Inertia SSR is off in Docker (`INERTIA_SSR_ENABLED=false`), on locally.
 - `roomtone:backup` (daily 03:30) writes `VACUUM INTO` copies to `/var/roomtone/backups/` and keeps 7 (don't restore Render disk snapshots of a live SQLite file); its test uses its own SQLite file (VACUUM can't run inside RefreshDatabase's transaction).
-- `docker/smoke.sh` runs the image as Render would (`PORT=10000`) and checks it end to end, including a guest join over the websocket. Run it before pushing Docker changes. With SSR off the page text is in the JS chunks, not the HTML.
-
-## Taste test
-
-- `roomtone:taste {file}` is a standalone taste test (Qloo search → Claude picks or bridges → Qloo artists → Claude picks songs) that calls the Messages API directly with the `config/ai.php` key, URL and model. Its people file and report live in `storage/app/taste-test/` (git-ignored: Qloo data).
-
-## Known limits (final sweep, Oct 24, 2026)
-
-- YouTube search quota (100 a day) is the weak point; ask Google for more (don't rotate keys).
-- Tracks stored before the video ranking keep their old video; to re-pick, clear `youtube_video_id` and `youtube_checked_at` on them (each costs a search).
-- `vp check` also reports formatting in `compose.yaml`, `render.yaml`, `database/parties/*.json` and `docs/*.md` (not code, left as is). Don't run `vp check --fix` without reverting those; `make check` (PHPStan, Pint, tsc, `vp lint`) is the gate.
-- The starter kit's `/dashboard`, Fortify login/register and settings pages exist but nothing links to them; no accounts are used.
-- The host key in the URL is the only host protection (by design): anyone with the host link can end the party.
-- Verify before relying on it: pool shuffle and the plan-aware prompt were only tested with a fake model, never judged live.

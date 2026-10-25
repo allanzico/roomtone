@@ -64,7 +64,19 @@ YouTube allows about 100 searches a day. Each track is looked up once and rememb
 
 ## Deploy
 
-One Docker container (FrankenPHP: PHP with Caddy) runs the site, the queue worker, Reverb and the scheduler, with SQLite on a disk. `docker compose up` runs it locally; `render.yaml` deploys it to Render. See [docs/DEPLOY.md](docs/DEPLOY.md).
+One Docker container (FrankenPHP: PHP with Caddy) runs the site, the queue worker, Reverb and the scheduler, with SQLite on a disk. `docker compose up -d --build` runs it locally (it reads your `.env`); `make deploy` rebuilds it from scratch.
+
+### On Render
+
+`render.yaml` is a Blueprint for one Docker web service (`starter` plan, a 1 GB disk at `/var/roomtone` for SQLite, health check `/up`, deploys the `main` branch).
+
+1. In Render: **New → Blueprint**, pick this repository. Render reads `render.yaml`.
+2. Give it the values it asks for (marked `sync: false`): `APP_KEY` (`php artisan key:generate --show`), `APP_URL` (the public address, e.g. `https://roomtone.stackyard.io`), `QLOO_API_KEY`, `YOUTUBE_API_KEY`, `AI_PROVIDER_KEY`. Everything else is in the file; `REVERB_APP_SECRET` is generated.
+3. Optional custom domain: add it on the service, then in Cloudflare a CNAME to the `onrender.com` address with SSL/TLS mode **Full (strict)**. `TRUSTED_PROXIES=*` lets Laravel see visitors' real IPs and HTTPS through the proxies; websockets pass through.
+
+Every push to `main` redeploys. With a disk, Render stops the old container before starting the new one, so a deploy means a few seconds of downtime. Migrations run when the container starts. The container keeps `queue:work`, `reverb:start` and `schedule:work` running; the scheduler refreshes stored YouTube data daily and backs up the database nightly to `/var/roomtone/backups/` (newest 7 kept).
+
+YouTube's search quota (about 100 searches a day) limits how many new rooms can get songs with videos each day: ask Google for more before a busy event.
 
 ## Tests
 

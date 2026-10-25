@@ -370,7 +370,8 @@ function NowPlaying() {
     const [leaving, setLeaving] = useState<SetItem | null>(null);
 
     if (item !== shown) {
-        setLeaving(reducedMotion ? null : shown);
+        // The same track arriving as a new object (a reload) is not leaving: two children would share a key.
+        setLeaving(reducedMotion || shown?.id === item?.id ? null : shown);
         setShown(item);
     }
 
