@@ -9,4 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('roomtone:refresh-videos')->daily();
+Schedule::command('roomtone:resume-sets')->everyMinute();
 Schedule::command('roomtone:backup')->dailyAt('03:30');

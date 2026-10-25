@@ -102,30 +102,19 @@ export default function HostRoom(props: HostRoomProps) {
         },
     );
 
-    // While the DJ works on a request, also check every 3s, in case the live connection drops.
-    const pending = props.latestRequest?.status === 'pending';
-    const poll = usePoll(
-        3000,
-        {
-            only: [
-                'latestRequest',
-                'nowPlaying',
-                'queue',
-                'clusters',
-                'guests',
-                'ended',
-                'youtubePaused',
-            ],
-        },
-        { autoStart: false },
-    );
-    useEffect(() => {
-        if (pending) {
-            poll.start();
-        } else {
-            poll.stop();
-        }
-    }, [pending, poll]);
+    // Reverb can disconnect without a visible error. Keep the host's set and playback status fresh even when no
+    // host request is pending; otherwise a missed RoomUpdated leaves the screen on an old song indefinitely.
+    usePoll(10000, {
+        only: [
+            'latestRequest',
+            'nowPlaying',
+            'queue',
+            'clusters',
+            'guests',
+            'ended',
+            'youtubePaused',
+        ],
+    });
 
     useEffect(() => {
         const onResize = () =>

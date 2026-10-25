@@ -12,6 +12,7 @@ use App\Models\Event;
 use App\Models\Guest;
 use App\Models\GuestLove;
 use App\Services\Dj\GuestResolver;
+use App\Services\YouTube\YouTubeClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
@@ -73,16 +74,19 @@ class JoinController extends Controller
         }
 
         if ($event->hasEnded()) {
-            return Inertia::render('Guest', ['event' => $this->summary($event), 'guest' => ['name' => $guest->name, 'loves' => []], 'song' => null, 'reading' => false]);
+            return Inertia::render('Guest', ['event' => $this->summary($event), 'guest' => ['name' => $guest->name, 'loves' => []], 'song' => null, 'reading' => false, 'youtubePaused' => false]);
         }
 
-        $item = $event->setItems()->with('track')
+        $items = $event->setItems()->with('track')
             ->where('reason_guest_id', $guest->id)
             ->whereIn('status', [SetItemStatus::Playing, SetItemStatus::Queued])
             // The track actually playing wins. For upcoming tracks, show their blend first, then the next one.
             ->orderByRaw('case when status = ? then 0 else 1 end', [SetItemStatus::Playing->value])
             ->orderByRaw('(reason_love_id is null and host_request_id is null) desc')
-            ->orderBy('position')->first();
+            ->orderBy('position')->get();
+        // The host hides songs without a video whenever a playable one exists. Show that same playable choice to
+        // the guest instead of a provisional song that cannot reach the player.
+        $item = $items->first(fn ($candidate) => $candidate->track->youtube_video_id !== null) ?? $items->first();
         $playing = $event->setItems()->where('status', SetItemStatus::Playing)->value('position');
 
         return Inertia::render('Guest', [
@@ -106,11 +110,14 @@ class JoinController extends Controller
                 'artist' => $item->track->artist,
                 'reason' => $item->reason_text,
                 'playing' => $item->status === SetItemStatus::Playing,
+                'playable' => $item->track->youtube_video_id !== null,
                 // Tracks before theirs, counting from the one playing now.
-                'ahead' => $item->status === SetItemStatus::Playing || $playing === null ? 0
-                    : $event->setItems()->where('status', SetItemStatus::Queued)->where('position', '<', $item->position)->count() + 1,
+                'ahead' => $item->track->youtube_video_id === null || $item->status === SetItemStatus::Playing || $playing === null ? 0
+                    : $event->setItems()->where('status', SetItemStatus::Queued)->where('position', '<', $item->position)
+                        ->whereHas('track', fn ($tracks) => $tracks->whereNotNull('youtube_video_id'))->count() + 1,
             ],
             'reading' => $guest->loves()->where('status', LoveStatus::Pending)->exists(),
+            'youtubePaused' => YouTubeClient::paused(),
         ]);
     }
 

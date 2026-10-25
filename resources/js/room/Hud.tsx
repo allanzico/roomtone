@@ -362,6 +362,7 @@ function titleAxes(energy: number): CSSProperties {
 function NowPlaying() {
     const item = useRoom((s) => s.nowPlaying);
     const guests = useRoom((s) => s.guests);
+    const queued = useRoom((s) => s.queue.length > 0);
     const playable = useRoom(hasVideo);
     const host = useRoom((s) => s.hostKey !== null);
     const paused = useRoom((s) => s.youtubePaused);
@@ -416,13 +417,20 @@ function NowPlaying() {
                     music.
                 </p>
             )}
-            {!item && guests.length > 0 && (
+            {!item && guests.length > 0 && !queued && (
                 <Loading>The DJ is picking the first songs…</Loading>
+            )}
+            {!item && queued && !playable && (
+                <p className="rt-notice" role="status">
+                    {paused
+                        ? 'The DJ picked songs, but YouTube search is paused. No video can play yet; the set will be retried when search resumes.'
+                        : 'The DJ picked songs, but none has a playable video yet.'}
+                </p>
             )}
             {item && host && !playable && (
                 <p className="rt-notice" role="status">
                     {paused
-                        ? "YouTube's daily search limit is reached, so new songs can't be looked up until it resets. Songs already found still play."
+                        ? 'YouTube search is paused, so new songs cannot be looked up yet. Songs already found still play.'
                         : 'No video was found for this song.'}
                 </p>
             )}

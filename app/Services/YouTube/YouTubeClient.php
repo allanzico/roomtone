@@ -20,6 +20,8 @@ class YouTubeClient
 {
     private const QUOTA_OUT = 'youtube:quota-out';
 
+    public const RECOVER_SETS = 'youtube:recover-sets';
+
     /** Whether searching is paused because the quota is used up (until midnight Pacific time, or a minute). */
     public static function paused(): bool
     {
@@ -230,6 +232,10 @@ class YouTubeClient
             Cache::put(self::QUOTA_OUT, true, now('America/Los_Angeles')->addDay()->startOfDay());
         } elseif ($response->status() === 429) {
             Cache::put(self::QUOTA_OUT, true, now()->addMinute());
+        }
+
+        if ($daily || $response->status() === 429) {
+            Cache::put(self::RECOVER_SETS, true, now()->addDays(2));
         }
     }
 }

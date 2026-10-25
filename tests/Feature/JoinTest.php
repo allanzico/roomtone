@@ -14,6 +14,7 @@ use App\Services\Dj\GuestClusterer;
 use App\Services\Dj\GuestResolver;
 use App\Services\Dj\SetBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event as Events;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -117,7 +118,28 @@ test('the guest page shows how the DJ read each love, then their song and how fa
     }
 
     $as()->get('/e/JOIN01/me')->assertInertia(fn (Assert $page) => $page
-        ->where('song', ['title' => 'Theirs', 'artist' => 'A2', 'reason' => 'because Maria loves Ozark', 'playing' => false, 'ahead' => 2]));
+        ->where('song', ['title' => 'Theirs', 'artist' => 'A2', 'reason' => 'because Maria loves Ozark', 'playing' => false, 'playable' => false, 'ahead' => 0]));
+});
+
+test('a guest sees a playable song ahead of a provisional pick and gets the search pause status', function () {
+    $guest = $this->event->guests()->create(['name' => 'Maria', 'color' => '#ffffff']);
+    $this->event->setItems()->create([
+        'track_id' => Track::create(['artist' => 'A', 'title' => 'Provisional'])->id,
+        'position' => 1, 'status' => SetItemStatus::Queued, 'reason_guest_id' => $guest->id,
+        'reason_text' => 'for Maria',
+    ]);
+    $this->event->setItems()->create([
+        'track_id' => Track::create(['artist' => 'B', 'title' => 'Ready', 'youtube_video_id' => 'video'])->id,
+        'position' => 2, 'status' => SetItemStatus::Queued, 'reason_guest_id' => $guest->id,
+        'reason_text' => 'for Maria',
+    ]);
+    Cache::put('youtube:quota-out', true, now()->addHour());
+
+    $this->withCookie('roomtone_guest_JOIN01', (string) $guest->id)
+        ->get('/e/JOIN01/me')->assertInertia(fn (Assert $page) => $page
+        ->where('song.title', 'Ready')
+        ->where('song.playable', true)
+        ->where('youtubePaused', true));
 });
 
 test('a guest sees the track playing for them before an upcoming blend track', function () {

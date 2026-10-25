@@ -29,9 +29,11 @@ type Props = {
         artist: string;
         reason: string;
         playing: boolean;
+        playable: boolean;
         ahead: number;
     } | null;
     reading: boolean;
+    youtubePaused: boolean;
 };
 
 const STATUS = {
@@ -41,13 +43,23 @@ const STATUS = {
 } as const;
 
 /** The guest's page after joining: how the DJ read their loves, and their song once it is in the set. */
-export default function Guest({ event, guest, song, reading }: Props) {
+export default function Guest({
+    event,
+    guest,
+    song,
+    reading,
+    youtubePaused,
+}: Props) {
     useEchoPublic(`room.${event.code}`, 'RoomUpdated', () =>
-        router.reload({ only: ['event', 'guest', 'song', 'reading'] }),
+        router.reload({
+            only: ['event', 'guest', 'song', 'reading', 'youtubePaused'],
+        }),
     );
     // The live connection can drop (a phone asleep, a flaky network): check now and then, so the song shown here
     // follows what plays. Inertia pauses polling while the page is hidden.
-    usePoll(15000, { only: ['event', 'guest', 'song', 'reading'] });
+    usePoll(15000, {
+        only: ['event', 'guest', 'song', 'reading', 'youtubePaused'],
+    });
     const [editing, setEditing] = useState(false);
 
     if (event.ended) {
@@ -144,16 +156,25 @@ export default function Guest({ event, guest, song, reading }: Props) {
                     {song ? (
                         <section className="rt-guest-song">
                             <p className="rt-field-label">
-                                {song.playing
-                                    ? 'Playing now'
-                                    : song.ahead <= 1
-                                      ? 'Up next'
-                                      : `Coming up, ${song.ahead} songs away`}
+                                {!song.playable
+                                    ? 'Waiting for a playable video'
+                                    : song.playing
+                                      ? 'Playing now'
+                                      : song.ahead <= 1
+                                        ? 'Up next'
+                                        : `Coming up, ${song.ahead} songs away`}
                             </p>
                             <p className="rt-guest-song-title">{song.title}</p>
                             <p className="rt-guest-lede">
                                 {song.artist}, {song.reason}
                             </p>
+                            {!song.playable && (
+                                <p className="rt-guest-lede" role="status">
+                                    {youtubePaused
+                                        ? 'YouTube search is paused. The DJ will retry this set when search resumes.'
+                                        : 'This pick has no playable video yet, so it cannot play.'}
+                                </p>
+                            )}
                         </section>
                     ) : (
                         <Loading>
