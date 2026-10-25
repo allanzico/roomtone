@@ -1,6 +1,6 @@
 <?php
 
-namespace Database\Seeders;
+namespace Tests\Support;
 
 use App\Enums\SetItemStatus;
 use App\Models\Event;
@@ -9,17 +9,17 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
 /**
- * The "Lisbon Rooftop" demo party (event code DEMO), with fake data for the host room.
- * Re-running it replaces the DEMO event; the global track cache is updated in place.
+ * A fixture for the tests: the "Lisbon Rooftop" party (event code ROOF01) with fake guests, islands and a set.
+ * Re-running it replaces the event; the global track cache is updated in place.
  */
-class DemoPartySeeder extends Seeder
+class RooftopSeeder extends Seeder
 {
     public function run(): void
     {
-        Event::query()->where('code', 'DEMO')->delete();
+        Event::query()->where('code', 'ROOF01')->delete();
 
         $event = Event::query()->create([
-            'code' => 'DEMO',
+            'code' => 'ROOF01',
             'name' => 'Lisbon Rooftop',
             'occasion' => 'Rooftop birthday',
             'energy_plan' => [

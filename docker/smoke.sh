@@ -55,18 +55,18 @@ grep -q '"component":"welcome"' <<<"$home" || fail "welcome page"
 app=$(grep -o '/build/assets/app-[^"]*\.js' <<<"$home" | head -1)
 [ -n "$app" ] && curl -fsS -o /dev/null "$base$app" || fail "app bundle"
 page=$(run sh -c 'ls public/build/assets | grep "^welcome-.*\.js$" | head -1')
-curl -fsS "$base/build/assets/$page" | grep -q "Try a demo party" || fail "welcome page bundle"
+curl -fsS "$base/build/assets/$page" | grep -q "Start your room" || fail "welcome page bundle"
 curl -fsSI "$base/" | grep -qi "x-content-type-options: nosniff" || fail "security headers"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$base/new")" = 200 ] || fail "/new"
 pass "pages and headers"
 
-run php artisan db:seed --class=DemoPartySeeder --force >/dev/null
+# A room to join: created straight in the database (no API calls).
+run php artisan tinker --execute="App\\Models\\Event::create(['code' => 'SMOKE1', 'name' => 'Smoke', 'host_token' => 'smoke-key']);" >/dev/null
 jar="$work/cookies"
 curl -fsS -c "$jar" -b "$jar" -o /dev/null "$base/"
 xsrf() { python3 -c "import sys,urllib.parse;print(urllib.parse.unquote([l.split()[-1] for l in open(sys.argv[1]) if 'XSRF-TOKEN' in l][0]))" "$jar"; }
-copy=$(curl -s -c "$jar" -b "$jar" -o /dev/null -w '%{redirect_url}' -H "X-XSRF-TOKEN: $(xsrf)" -X POST "$base/demo")
-case "$copy" in "$base"/e/*/host\?key=*) ;; *) fail "demo copy redirected to '$copy'" ;; esac
-pass "demo copy opens its host link"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$base/e/SMOKE1/host?key=smoke-key")" = 200 ] || fail "host screen"
+pass "a room's host screen opens"
 
 # Listen on the room's channel through the web server (websocket) while a guest joins.
 listener=""
@@ -75,7 +75,7 @@ if command -v node >/dev/null 2>&1; then
 		const ws = new WebSocket(process.argv[1]);
 		ws.onmessage = (m) => {
 			const msg = JSON.parse(m.data);
-			if (msg.event === "pusher:connection_established") ws.send(JSON.stringify({ event: "pusher:subscribe", data: { channel: "room.DEMO" } }));
+			if (msg.event === "pusher:connection_established") ws.send(JSON.stringify({ event: "pusher:subscribe", data: { channel: "room.SMOKE1" } }));
 			if (msg.event.endsWith("GuestJoined")) { console.log(msg.data); process.exit(0); }
 		};
 		setTimeout(() => process.exit(1), 20000);
@@ -84,11 +84,11 @@ if command -v node >/dev/null 2>&1; then
 	sleep 2
 fi
 
-curl -fsS -c "$jar" -b "$jar" -o /dev/null "$base/e/DEMO"
+curl -fsS -c "$jar" -b "$jar" -o /dev/null "$base/e/SMOKE1"
 me=$(curl -s -c "$jar" -b "$jar" -o /dev/null -w '%{redirect_url}' -H "X-XSRF-TOKEN: $(xsrf)" \
-	--data-urlencode 'name=Smoke Sam' --data-urlencode 'loves[]=Ozark' --data-urlencode 'loves[]=Lisbon' --data-urlencode 'loves[]=Tems' "$base/e/DEMO/guests")
-[ "$me" = "$base/e/DEMO/me" ] || fail "join redirected to '$me'"
-curl -fsS -b "$jar" "$base/e/DEMO/me" | grep -q "Smoke Sam" || fail "guest page"
+	--data-urlencode 'name=Smoke Sam' --data-urlencode 'loves[]=Ozark' --data-urlencode 'loves[]=Lisbon' --data-urlencode 'loves[]=Tems' "$base/e/SMOKE1/guests")
+[ "$me" = "$base/e/SMOKE1/me" ] || fail "join redirected to '$me'"
+curl -fsS -b "$jar" "$base/e/SMOKE1/me" | grep -q "Smoke Sam" || fail "guest page"
 pass "a guest joins and sees their page"
 
 if [ -n "$listener" ]; then

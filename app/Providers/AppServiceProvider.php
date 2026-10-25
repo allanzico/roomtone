@@ -43,7 +43,6 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('setup-turn', fn (Request $request) => Limit::perHour(60)->by($request->ip()));
         RateLimiter::for('setup-room', fn (Request $request) => Limit::perHour(20)->by($request->ip()));
-        RateLimiter::for('demo', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
         RateLimiter::for('join', fn (Request $request) => Limit::perMinute(60)->by($room($request).'|'.$request->ip()));
         RateLimiter::for('guest-update', fn (Request $request) => Limit::perMinute(20)->by($room($request).'|'.$request->ip()));
         RateLimiter::for('host-request', fn (Request $request) => Limit::perMinute(10)->by($room($request)));

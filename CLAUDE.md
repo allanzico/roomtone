@@ -16,7 +16,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 ## Hackathon constraints (Qloo Agentic Hackathon, Devpost)
 
 - Must integrate the Qloo API and be an agentic app (built with an agent framework). Qloo must be the differentiator.
-- Must be a live, externally hosted app judges can use end-to-end, alone. → needs a "Try a demo party" mode.
+- Must be a live, externally hosted app judges can use end-to-end, alone. The "Try a demo party" mode was removed at the owner's request (Oct 25, 2026): judges start their own room at `/new` and join it themselves.
 - Public repo with all source + run instructions, and an open-source license (MIT) visible in the repo.
 - No demo video required.
 
@@ -49,7 +49,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 4. YouTube resolve (cached) + IFrame player
 5. DJ agent (Laravel AI SDK) rebalancing the set on guest join
 6. Host request box → agent + "why this song" beam wired to real data
-7. Demo party mode + energy arc + setup chat (handoff §4)
+7. Energy arc + setup chat (handoff §4); the demo party mode built here was later removed
 8. Guest phone polish + mic audio reactivity
 9. Hardening
 10. README, license, submission ← **current** (phases 1–9 are built; the final sweep is done, see "Known limits")
@@ -73,7 +73,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - `HostRoom` is a full-screen Inertia page with no layout: see the `layout` switch in `resources/js/app.tsx`.
 - 3D room lives in `resources/js/room/`. `store.ts` (zustand) is the single source of client state; per-frame values (energy smoothing, orb positions) live in `room/live.ts`, outside React, so animation never re-renders components.
 - Guest-to-cluster weights live in the `guest_taste_cluster` pivot (`weight` 0–1). This is the one addition to the data model above: the agent writes it later.
-- A host request's pick has no love pool: its cluster is the island matching the genre the host asked for (`interpreted.genre`), else none. A track's cluster = its own artist's Qloo genres (from the reason love's pool) matched to the room's island labels (`HostRoomController::clusterOf`, sent as `clusterId`), never the reason guest's island: a song for a hip hop fan is not hip hop by association. No match: no genre (grey dot). Only when an artist has no genre data at all (the fake demo) does it fall back to the guest's main island.
+- A host request's pick has no love pool: its cluster is the island matching the genre the host asked for (`interpreted.genre`), else none. A track's cluster = its own artist's Qloo genres (from the reason love's pool) matched to the room's island labels (`HostRoomController::clusterOf`, sent as `clusterId`), never the reason guest's island: a song for a hip hop fan is not hip hop by association. No match: no genre (grey dot). Only when an artist has no genre data at all (pools stored before genres were kept) does it fall back to the guest's main island.
 - Display font: Bricolage Grotesque (variable `opsz`/`wdth`/`wght`, OFL) served locally from `resources/fonts/bricolage-grotesque` via the Vite fonts `local()` provider; latin-ext is a second family ("Bricolage Grotesque Ext") in the `--rt-font` stack, because `local()` has no unicode-range. Instrument Sans (kit default, auth/settings pages) comes from Bunny at build time. The now-playing title's width and weight follow the energy level.
 - Host screen layout: `room/stage.ts` picks TV (landscape ≥ 1024px, one 1920×1080 stage scaled to fit) or phone. Pool coordinates are layout px; the 3D world is 1 unit = 100 layout px, origin at the frame centre, so the HUD and the islands line up. Design tokens live in `resources/css/tokens.css`; genre colours are read from them in `room/genres.ts`.
 - A cluster's `position` x/z is its preferred spot on the host screen floor (x −7.2…7.2, z −3.05…3.05); `layoutIslands()` maps it into the pool band and pushes overlaps apart. y is unused.
@@ -98,7 +98,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 - "End party" (host link only, next to the room name) confirms, `POST /e/{code}/end` sets `events.ended_at`, then goes to `/new`. After that guests' pages say "This party has ended" (`guest/PartyEnded.tsx`, live through `RoomUpdated`), joining, editing loves and host requests are refused, and `ResolveGuest`/`BuildSet`/`SteerSet` return at once: no Qloo or model calls for a finished party. The host link of an ended party shows the same notice.
 - The host screen's queue (`HostRoomController`) leaves out tracks with no video, unless nothing in the set has one (then it only shows the set). A playing track with no video is skipped by `VideoTile`. Before this, a videoless tail made `hasVideo` false, which unmounted the player and the TV controls and left a "playing" track nobody could skip.
 - The TV join corner has "Copy link" (the guest link; when the clipboard is refused it shows the link to copy by hand). Phones use the Invite button (share sheet, then clipboard).
-- `roomtone:resolve-videos {code}` resolves an event's set (the demo party needs it after seeding).
+- `roomtone:resolve-videos {code}` resolves an event's set.
 
 ## Qloo API notes (verified live, Oct 2026)
 
@@ -113,7 +113,7 @@ The 3D host screen is the signature experience: extraordinary, playful, premium 
 
 ## DJ agent design (validated by spikes, Oct 2026)
 
-Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stage 1 per guest (queued job: one Haiku pick call per guest, per-love single-signal Qloo calls, stored pools), stage 2 picks only from stored pools through a validating `add_track` tool, code writes every "because X loves Y" reason, host requests use request pools, global cap of 3 concurrent Qloo calls with 429 retry. Haiku is the model for the demo. Reference scripts: `docs/spikes/` (their outputs hold Qloo data and must stay out of the repo).
+Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stage 1 per guest (queued job: one Haiku pick call per guest, per-love single-signal Qloo calls, stored pools), stage 2 picks only from stored pools through a validating `add_track` tool, code writes every "because X loves Y" reason, host requests use request pools, global cap of 3 concurrent Qloo calls with 429 retry. Haiku is the model. Reference scripts: `docs/spikes/` (their outputs hold Qloo data and must stay out of the repo).
 
 ## DJ agent as built (Phase 5)
 
@@ -139,16 +139,14 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 - While a request is pending the host screen polls every 3s (Inertia `usePoll`); Reverb will replace this.
 - YouTube's daily search quota answers HTTP 429 with a per-day `quota_limit` detail, not only 403 `quotaExceeded`; `YouTubeClient::noteQuota` handles both. When it is out, `SetBuilder` keeps only tracks that can play (see the quota note above).
 
-## Demo party and energy arc (Phase 7)
+## Energy arc (Phase 7)
 
-- Deploy step: `php artisan roomtone:demo:build` builds the demo (event code `DEMO`) from `database/parties/demo.json` (16 fictional guests, plan in minutes from now) with live Qloo, Anthropic and YouTube calls into this server's database. It builds into a temporary event and only replaces `DEMO` if at least 75% of guests have results, there are 10+ tracks and 80% have a video; otherwise (or with a key missing, e.g. after judging) it keeps the existing demo. Never commit its output.
-- "Try a demo party" (`POST /demo`, welcome page) copies `DEMO` into a new event (`events.demo = true`, own code and host key) from the database alone, then redirects to its host link. `model:prune` (daily) deletes copies older than a day.
 - `Services/Dj/EnergyArc`: target energy per upcoming slot (3.5 min a track) from `events.energy_plan` (clock times, crossing midnight; a default warm/build/peak/wind-down arc without a plan); `SetBuilder` orders each new set to follow it, never the same guest twice in a row. The host screen's energy follows the playing track's energy. Plan times are in the app timezone (UTC) until the setup chat asks the host's.
 - Starfield values are rounded: the welcome page is server-rendered and unrounded floats broke hydration.
 
 ## Guest join and realtime (Phase 2, built after Phase 7)
 
-- Guests: `/e/{code}` (join: name ≤ 40, exactly three loves ≤ 80, trimmed) → `POST /e/{code}/guests` → `/e/{code}/me` (how each love was read, then their song and how far away it is). A cookie `roomtone_guest_{CODE}` (48 h) remembers the phone; a returning phone goes to its page instead of joining twice. Demo copies can be joined.
+- Guests: `/e/{code}` (join: name ≤ 40, exactly three loves ≤ 80, trimmed) → `POST /e/{code}/guests` → `/e/{code}/me` (how each love was read, then their song and how far away it is). A cookie `roomtone_guest_{CODE}` (48 h) remembers the phone; a returning phone goes to its page instead of joining twice.
 - On their page a guest can change their name and loves (`PUT /e/{code}/me`, same `GuestForm` as joining): changed loves are reset to pending in place (ids kept, so played tracks keep their reasons), `ResolveGuest` runs again and the set rebuilds as usual. A love read as a real place shows "Got it: music from Lisbon" (`place`); a food is left unresolved, never bridged to a city.
 - Every now-playing report broadcasts `RoomUpdated`, so guests' pages show their song's state as it changes; the guest page also polls every 15 s as a fallback.
 - The host screen's QR is an SVG of the join link drawn server-side with `bacon/bacon-qr-code` (already installed via Fortify). No JS QR library.
@@ -166,7 +164,7 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 - The curve keeps 2–6 points: tap the space between two points to add one; tap a point to select it, then its × (or Delete) removes it. The peak is marked only when one point is strictly highest, so a flat plan has none. Trip axis labels read "45 min", "1 h 15".
 - Setup's actions float in a bottom dock (`.rt-setup-dock`: quick replies, the plan with its button, the composer); the chat scrolls above it, padded by the dock's measured height (`--rt-dock-h`). `.rt-setup` undoes `.rt-room`'s fixed, clipped frame. The curve is capped at 20vh, keeping its proportions (`--rt-curve-ratio`) so dragging still maps correctly; under 820px tall the button's caption hides. After each reply the chat follows the DJ's newest line down to the dock.
 - Left out on purpose: "Clean versions only" and "Anything to avoid?" (nothing can enforce them; the DJ says so if asked) and the "Speaker + TV" fact.
-- Rate limits are named, one counter each (`AppServiceProvider::rateLimits`): setup turns 60/hour and rooms 20/hour per IP, demo copies 10/min per IP, joins 60/min and guest edits 20/min per room+IP (a party is often one Wi-Fi), host requests 10/min and host-screen reports 120/min per room. Never use a plain `throttle:N,M`: its counter is shared by every throttled route for an IP, so a playing host screen once used up the setup chat's allowance (a "429 Too Many Requests" page).
+- Rate limits are named, one counter each (`AppServiceProvider::rateLimits`): setup turns 60/hour and rooms 20/hour per IP, joins 60/min and guest edits 20/min per room+IP (a party is often one Wi-Fi), host requests 10/min and host-screen reports 120/min per room. Never use a plain `throttle:N,M`: its counter is shared by every throttled route for an IP, so a playing host screen once used up the setup chat's allowance (a "429 Too Many Requests" page).
 
 ## Deploy (Phase 3)
 
@@ -185,7 +183,7 @@ Read `docs/DJ-agent-handover.md` before building Phases 3-7. Short version: stag
 
 ## Known limits (final sweep, Oct 24, 2026)
 
-- YouTube search quota (100 a day) is the weak point; ask Google for more (don't rotate keys). Build the demo with `php artisan roomtone:demo:build` while there is quota (about 20 searches); the deployed `DEMO` predates the blend, so rebuild it to get blends. Demo copies need no quota.
+- YouTube search quota (100 a day) is the weak point; ask Google for more (don't rotate keys).
 - Tracks stored before the video ranking keep their old video; to re-pick, clear `youtube_video_id` and `youtube_checked_at` on them (each costs a search).
 - `vp check` also reports formatting in `compose.yaml`, `render.yaml`, `database/parties/*.json` and `docs/*.md` (not code, left as is). Don't run `vp check --fix` without reverting those; `make check` (PHPStan, Pint, tsc, `vp lint`) is the gate.
 - The starter kit's `/dashboard`, Fortify login/register and settings pages exist but nothing links to them; no accounts are used.

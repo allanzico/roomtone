@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\DemoController;
 use App\Http\Controllers\EndPartyController;
 use App\Http\Controllers\HostRequestController;
 use App\Http\Controllers\HostRoomController;
@@ -15,7 +14,6 @@ Route::inertia('/', 'welcome')->name('home');
 Route::get('/new', [SetupController::class, 'show'])->name('setup');
 Route::post('/new/turn', [SetupController::class, 'turn'])->middleware('throttle:setup-turn')->name('setup.turn');
 Route::post('/new', [SetupController::class, 'store'])->middleware('throttle:setup-room')->name('setup.store');
-Route::post('/demo', [DemoController::class, 'store'])->middleware('throttle:demo')->name('demo.store');
 Route::get('/e/{code}', [JoinController::class, 'show'])->name('events.join');
 Route::post('/e/{code}/guests', [JoinController::class, 'store'])->middleware('throttle:join')->name('events.guests.store');
 Route::get('/e/{code}/me', [JoinController::class, 'me'])->name('events.me');

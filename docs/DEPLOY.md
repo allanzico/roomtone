@@ -8,7 +8,6 @@ It is one container because SQLite sits on one disk, and on Render a disk belong
 
 ```bash
 docker compose up -d --build
-docker compose exec app php artisan db:seed --class=DemoPartySeeder --force   # a fake demo party, no API calls
 ```
 
 It reads the same `.env` as `composer run dev` (see the README); `compose.yaml` overrides what differs inside Docker (the URL, database path, Reverb address, logs and SSR). The `.env` file never goes into the image. Open http://localhost. `docker compose logs -f`, `docker compose exec app sh`, `docker compose down` (keeps the data; add `-v` to delete it).
@@ -25,13 +24,6 @@ Plain `composer run dev` (no Docker) is still the everyday setup.
 
 1. In Render: **New → Blueprint**, pick this repository. Render reads `render.yaml`.
 2. Fill in the values it asks for: `APP_KEY` (`php artisan key:generate --show`), `APP_URL` (the public address, e.g. `https://roomtone.stackyard.io`), `QLOO_API_KEY`, `YOUTUBE_API_KEY`, `AI_PROVIDER_KEY`.
-3. After the first deploy, build the demo party from live calls (Shell tab in Render):
-
-   ```bash
-   php artisan roomtone:demo:build
-   ```
-
-   It writes into the server's database only (never into the repository: Qloo's terms) and keeps the existing demo if anything falls short, so it is safe to re-run. It needs about 20 of the 100 daily YouTube searches. Until then `/e/DEMO` is a 404.
 
 Every push to the branch redeploys. With a disk, Render stops the old container before starting the new one, so a deploy means a few seconds of downtime. Migrations run when the container starts (Render's pre-deploy command can't see the disk).
 
@@ -50,4 +42,4 @@ Add `roomtone.stackyard.io` as a custom domain on the Render service, then in Cl
 docker/smoke.sh
 ```
 
-Builds the image and runs it the way Render does (`PORT=10000`, the `render.yaml` settings, a volume as the disk), then checks: the queue worker, Reverb and scheduler are running, pages and security headers, a demo copy, a guest joining with the live `GuestJoined` event over the websocket, the guest's page, and a backup. Everything it created is removed afterwards. Needs no API keys. Run it before pushing Docker changes.
+Builds the image and runs it the way Render does (`PORT=10000`, the `render.yaml` settings, a volume as the disk), then checks: the queue worker, Reverb and scheduler are running, pages and security headers, a room's host screen, a guest joining with the live `GuestJoined` event over the websocket, the guest's page, and a backup. Everything it created is removed afterwards. Needs no API keys. Run it before pushing Docker changes.

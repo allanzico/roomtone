@@ -7,11 +7,11 @@ use App\Models\Track;
 use App\Services\YouTube\TrackResolver;
 use App\Services\YouTube\YouTubeClient;
 use App\Services\YouTube\YouTubeException;
-use Database\Seeders\DemoPartySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\RooftopSeeder;
 
 uses(RefreshDatabase::class);
 
@@ -246,8 +246,8 @@ test('the daily refresh keeps playable videos, drops dead ones and forgets old m
 });
 
 test('resolving a set finds videos once, swaps in a fallback track and skips played items', function () {
-    $this->seed(DemoPartySeeder::class);
-    $event = Event::query()->where('code', 'DEMO')->sole();
+    $this->seed(RooftopSeeder::class);
+    $event = Event::query()->where('code', 'ROOF01')->sole();
     $last = $event->setItems()->where('position', 1)->sole();
     $event->setItems()->where('position', 10)->update(['status' => SetItemStatus::Played]);
     fakeYouTube([
@@ -271,10 +271,10 @@ test('resolving a set finds videos once, swaps in a fallback track and skips pla
 });
 
 test('the resolve command reports how many tracks have a video', function () {
-    $this->seed(DemoPartySeeder::class);
+    $this->seed(RooftopSeeder::class);
     fakeYouTube(['Tems' => [video('tems', 'Tems - Free Mind', 'Tems')]]);
 
-    $this->artisan('roomtone:resolve-videos', ['code' => 'demo'])
+    $this->artisan('roomtone:resolve-videos', ['code' => 'roof01'])
         ->expectsOutput('1 of 10 tracks have a video.')
         ->assertSuccessful();
 });

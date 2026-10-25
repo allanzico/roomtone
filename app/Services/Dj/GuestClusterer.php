@@ -35,7 +35,7 @@ class GuestClusterer
     {
         [$profiles, $spellings] = $this->profiles($event);
 
-        // No readable guests yet (or a seeded demo party): leave the clusters as they are.
+        // No readable guests yet (or a party seeded with fake data): leave the clusters as they are.
         if ($profiles === []) {
             return;
         }

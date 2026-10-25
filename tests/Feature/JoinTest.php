@@ -120,14 +120,6 @@ test('the guest page shows how the DJ read each love, then their song and how fa
         ->where('song', ['title' => 'Theirs', 'artist' => 'A2', 'reason' => 'because Maria loves Ozark', 'playing' => false, 'ahead' => 2]));
 });
 
-test('a demo copy can be joined like any party', function () {
-    Queue::fake();
-    $demo = Event::create(['code' => 'DEMOC1', 'name' => 'Lisbon Rooftop', 'host_token' => 'demo-secret', 'demo' => true]);
-
-    $this->post('/e/DEMOC1/guests', joinWith())->assertRedirect('/e/DEMOC1/me');
-    expect($demo->guests()->count())->toBe(1);
-});
-
 test('the host screen gets the join link and its QR code', function () {
     $this->get('/e/JOIN01/host')->assertInertia(fn (Assert $page) => $page
         ->where('join.url', url('/e/JOIN01'))

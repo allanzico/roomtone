@@ -155,7 +155,7 @@ class HostRoomController extends Controller
         $theirs = ($event->guests->firstWhere('id', $item->reason_guest_id)->clusters ?? collect())
             ->sortByDesc(fn (TasteCluster $c) => (float) $c->getRelationValue('pivot')->weight)->values();
 
-        // No genre data for this artist at all (the fake demo, older pools): the guest's own island is the best guess.
+        // No genre data for this artist at all (pools stored before genres were kept): the guest's own island is the best guess.
         if ($artist === null || ! isset($artist['genres'])) {
             return $theirs->first()?->id;
         }

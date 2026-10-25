@@ -132,7 +132,6 @@ Haiku 5.5 list prices (third-party sources, confirm): input $0.10/MTok, output $
 | Does stage 1 hold on a 50+ guest party? | Qloo is the limit at about 3 calls at a time. | Run 50 synthetic guests; expect about 4 minutes of stage 1 if everyone joins at once. Confirm no 429s with the cap. | Phase 3 |
 | Real guest input quality | Test loves were written by us. Real ones are messier (typos, other languages, emoji, long text). | Log unresolved loves on the first real events; add trimming and a length limit (for example 80 characters). | Phase 2 |
 | Energy and BPM accuracy | Qloo provides neither. They are model estimates. | Treat energy as approximate. Cross-check against Qloo tags (`energetic`, `calm`) when choosing for the energy arc. Do not show BPM to users. | Phase 7 |
-| Demo mode vs the Qloo data rule | Qloo data cannot be in the public repo. | A deploy-time artisan command builds the demo party from live Qloo calls into the server database. Never commit its output. Plan for the Qloo key to be deactivated after judging: the cached demo data in the server database must still work. | Phase 7 |
 | Behaviour on another model | The user decided to stay on Haiku. | Not needed for the hackathon. | – |
 
 ## 9. Changes to the phase plan
@@ -141,5 +140,5 @@ Haiku 5.5 list prices (third-party sources, confirm): input $0.10/MTok, output $
 - **Phase 4 (YouTube):** Data API with a cached `track -> video id`, title fallback to the artist's next listed song, "Start the party" click.
 - **Phase 5 (DJ agent):** build exactly the two-stage design above. Use the Laravel AI SDK for the stage-2 tool loop with the `add_track` validator as the tool. Stage 1 per guest is a queued job. Enable prompt caching.
 - **Phase 6 (host request box):** implement request pools (section 4.3), not free-form agent steering.
-- **Phase 7 (demo mode):** build at deploy time from live Qloo, server-side only.
+- **Phase 7 (demo mode):** built, then removed at the owner's request (Oct 25, 2026).
 - Store `guest_loves.qloo_entity_id`, `qloo_type` and `resolved_name` as the stage-1 result (they already exist), plus a status for "unresolved". The ranked pools are cache entries, not model columns.

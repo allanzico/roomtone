@@ -5,8 +5,8 @@ use App\Models\Event;
 use App\Models\Guest;
 use App\Models\TasteCluster;
 use App\Services\Dj\GuestClusterer;
-use Database\Seeders\DemoPartySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\RooftopSeeder;
 
 uses(RefreshDatabase::class);
 
@@ -157,12 +157,12 @@ test('guests without readable loves get no island', function () {
     expect($gran->clusters()->count())->toBe(0);
 });
 
-test('a party with no readable guests keeps its clusters (the seeded demo party)', function () {
-    $this->seed(DemoPartySeeder::class);
-    $demo = Event::where('code', 'DEMO')->sole();
-    $before = islands($demo);
+test('a party with no readable guests keeps its clusters (a seeded party)', function () {
+    $this->seed(RooftopSeeder::class);
+    $party = Event::where('code', 'ROOF01')->sole();
+    $before = islands($party);
 
-    app(GuestClusterer::class)->cluster($demo);
+    app(GuestClusterer::class)->cluster($party);
 
-    expect(islands($demo))->toBe($before)->and($before)->not->toBeEmpty();
+    expect(islands($party))->toBe($before)->and($before)->not->toBeEmpty();
 });
