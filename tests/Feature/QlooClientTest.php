@@ -94,6 +94,27 @@ test('artists sends signals, location and tags and returns slim artists', functi
             && $q['filter.tags'] === 'urn:tag:style:qloo:calm'
             && $q['take'] === '10';
     });
+
+    $params = [
+        'filter.tags' => QlooClient::MOODS['calm'],
+        'filter.type' => 'urn:entity:artist',
+        'signal.interests.entities' => 't1,t2',
+        'signal.location.query' => 'Lagos',
+        'take' => 10,
+    ];
+    $cached = Cache::get('qloo:'.sha1('/v2/insights?'.http_build_query($params)));
+    expect($cached['results']['entities'][0]['properties'])->toBe(['notable_songs' => ['Down Home', 'Shine On Rainy Day']]);
+});
+
+test('an older full cached response is reduced without a new Qloo call', function () {
+    $params = ['filter.type' => 'urn:entity:artist', 'signal.interests.entities' => 'tv1', 'take' => 15];
+    $key = 'qloo:'.sha1('/v2/insights?'.http_build_query($params));
+    Cache::forever($key, ['success' => true, 'results' => ['entities' => [artistEntity('a1', 'Brent Cobb', ['Down Home'])]]]);
+    Http::fake();
+
+    expect(app(QlooClient::class)->artists(['tv1'], take: 15)[0]['name'])->toBe('Brent Cobb')
+        ->and(Cache::get($key)['results']['entities'][0]['properties'])->toBe(['notable_songs' => ['Down Home']]);
+    Http::assertNothingSent();
 });
 
 test('genres merge spellings, prefer the tidy one and skip non-genres', function () {

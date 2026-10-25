@@ -36,7 +36,7 @@ export function Hud({
     onDismissHint: () => void;
 }) {
     const stage = useRoom((s) => s.stage);
-    const playable = useRoom(hasVideo);
+    const playable = useRoom((s) => s.hostKey !== null && hasVideo(s));
     const started = useRoom((s) => s.started);
 
     // Play as soon as the first song with a video arrives, when the browser allows it (see autoStart).
@@ -81,7 +81,7 @@ function TvHud({
 }) {
     const empty = useRoom((s) => s.guests.length === 0);
     const stage = useRoom((s) => s.stage);
-    const playable = useRoom(hasVideo);
+    const playable = useRoom((s) => s.hostKey !== null && hasVideo(s));
 
     const host = useRoom((s) => s.hostKey !== null);
     const askOpen = useRoom((s) => s.askOpen);
@@ -142,7 +142,7 @@ function PhoneHud({ poolBottom }: { poolBottom: number }) {
                 )}
             </div>
             {host && <AskDj />}
-            <PlaybackBar />
+            {host && <PlaybackBar />}
         </div>
     );
 }
@@ -363,6 +363,7 @@ function NowPlaying() {
     const item = useRoom((s) => s.nowPlaying);
     const guests = useRoom((s) => s.guests);
     const playable = useRoom(hasVideo);
+    const host = useRoom((s) => s.hostKey !== null);
     const paused = useRoom((s) => s.youtubePaused);
 
     // Keep the previous track on screen for its 300ms fade-out.
@@ -409,10 +410,16 @@ function NowPlaying() {
                 </div>
             )}
             {item && <MixBar />}
+            {item && !host && (
+                <p className="rt-notice" role="status">
+                    This screen follows the party. Open the host link to play
+                    music.
+                </p>
+            )}
             {!item && guests.length > 0 && (
                 <Loading>The DJ is picking the first songs…</Loading>
             )}
-            {item && !playable && (
+            {item && host && !playable && (
                 <p className="rt-notice" role="status">
                     {paused
                         ? "YouTube's daily search limit is reached, so new songs can't be looked up until it resets. Songs already found still play."

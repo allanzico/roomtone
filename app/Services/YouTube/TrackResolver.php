@@ -25,6 +25,9 @@ class TrackResolver
         // Talk: podcasts and the like, where the song is only mentioned.
         'podcast', 'talk show', 'vlog', 'documentary', 'review'];
 
+    private const TALK_ABOUT_SONG = ['controversy', 'explains', 'discusses', 'talks about', 'story behind',
+        'meaning of', 'reacts to', 'reaction to', 'on the song', 'on his song', 'on her song'];
+
     /** A song is between a minute and a quarter of an hour: shorter is a snippet, longer a mix or a whole album. */
     private const MIN_SECONDS = 60;
 
@@ -220,7 +223,20 @@ class TrackResolver
         // The artist's own channel, or an upload named "Artist - Song". The name anywhere in the title is not enough:
         // "Awen - Mystic Waters" otherwise matches a podcast episode called "... Awen of Water".
         $name = $this->plain($artist);
-        if (! str_contains($this->plain($video['channel']), $name) && ! str_starts_with($videoTitle, $name)) {
+        $artistChannel = str_contains($this->plain($video['channel']), $name);
+        if (! $artistChannel && ! str_starts_with($videoTitle, $name.' '.$song)) {
+            return false;
+        }
+
+        // "Pharrell Williams on Blurred Lines lyrics controversy" mentions the song but is an interview.
+        // Artist-owned clips can be commentary too, so reject editorial titles on every channel.
+        foreach (self::TALK_ABOUT_SONG as $phrase) {
+            if (str_contains($videoTitle, $phrase)) {
+                return false;
+            }
+        }
+
+        if (str_starts_with($videoTitle, $name.' on ')) {
             return false;
         }
 

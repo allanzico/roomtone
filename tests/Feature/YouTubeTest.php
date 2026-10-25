@@ -184,6 +184,15 @@ test('a fan upload named "Artist - Song" is accepted when nothing official is fo
     expect(app(TrackResolver::class)->resolve('Tems', ['Free Mind'])->youtube_video_id)->toBe('fan');
 });
 
+test('an interview about a song is rejected in favour of a recording', function () {
+    fakeYouTube(['Blurred Lines' => [
+        video('talk', 'Pharrell Williams on Blurred Lines lyrics controversy', 'Pharrell Williams'),
+        video('song', 'Pharrell Williams - Blurred Lines (Official Audio)', 'Pharrell Williams - Topic'),
+    ]], views: ['talk' => 1000000, 'song' => 100]);
+
+    expect(app(TrackResolver::class)->resolve('Pharrell Williams', ['Blurred Lines'])->youtube_video_id)->toBe('song');
+});
+
 test('a title with no video falls back to the artist\'s next song, and both lookups are stored', function () {
     fakeYouTube([
         'Ghost Song' => [video('x', 'Someone Else - Other Song', 'Someone Else')],

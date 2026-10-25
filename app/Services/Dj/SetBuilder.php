@@ -101,6 +101,10 @@ class SetBuilder
             target: self::targetFor($guestsWithPools),
             usedArtists: array_values($kept->map(fn (SetItem $item) => $item->track->artist)->all()),
             playableTitle: $this->knownTitle(...),
+            energyTargets: $energies,
+            storedMeasurements: fn (string $artist, string $title) => Track::query()
+                ->where('artist', $artist)->where('title', $title)->whereNotNull('bpm')
+                ->first(['energy', 'bpm'])?->only(['energy', 'bpm']),
         );
 
         $prompt = $this->prompt($event, $guests, $loves, array_values($kept->map(fn (SetItem $item) => $item->track->artist)->unique()->all()), $validator->target);
@@ -121,12 +125,15 @@ class SetBuilder
             $usage = $usage->add($this->run($validator, $prompt."\n\n".$this->progress($validator, $guests), $event));
         }
 
-        $this->write($event, $this->withVideos($validator->accepted(), $loves), $kept->isNotEmpty() && $kept->contains('status', SetItemStatus::Playing));
+        $playable = $this->withVideos($validator->accepted(), $loves);
+        $this->write($event, $playable, $kept->isNotEmpty() && $kept->contains('status', SetItemStatus::Playing));
+        $served = array_merge(array_column($playable, 'for_guest_id'), $kept->pluck('reason_guest_id')->all());
+        $unserved = array_values(array_diff(array_unique(array_column($loves, 'guest_id')), $served));
 
         return [
-            'tracks' => count($validator->accepted()),
+            'tracks' => count($playable),
             'target' => $validator->target,
-            'unserved' => $validator->unservedIds(),
+            'unserved' => $unserved,
             'nudges' => $nudges,
             'log' => $validator->log(),
             'usage' => $usage,
@@ -402,12 +409,16 @@ class SetBuilder
 
             foreach ($accepted as $i => $item) {
                 $track = Track::query()->firstOrNew(['artist' => $item['artist'], 'title' => $item['title']]);
-                $track->fill(['energy' => $item['energy'], 'bpm' => $item['bpm'], 'qloo_artist_id' => $item['qloo_artist_id'], 'genres' => $item['genres']])->save();
+                if ($track->bpm === null) {
+                    $track->fill(['energy' => $item['energy'], 'bpm' => $item['bpm']]);
+                }
+                $track->fill(['qloo_artist_id' => $item['qloo_artist_id'], 'genres' => $item['genres']])->save();
 
                 $event->setItems()->create([
                     'track_id' => $track->id,
                     'position' => ++$position,
-                    'status' => ! $playing && $i === 0 ? SetItemStatus::Playing : SetItemStatus::Queued,
+                    'status' => ! $playing && $i === 0 && $track->youtube_video_id !== null
+                        ? SetItemStatus::Playing : SetItemStatus::Queued,
                     'reason_guest_id' => $item['for_guest_id'],
                     'reason_text' => $item['reason'],
                     // A blend is not a guest_loves row.

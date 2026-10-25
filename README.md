@@ -6,6 +6,10 @@ Guests scan a QR code and type three things they love: a show, a food, a place, 
 
 Built for the Qloo Agentic Hackathon.
 
+## How Qloo fits
+
+The Laravel backend sends guest interests to Qloo search and insights, stores ranked artist pools, and asks Qloo again with calm, energetic, or genre filters when the host changes the set. The DJ agent can choose songs only from those pools. [The Qloo integration guide](docs/QLOO.md) shows a redacted request-to-result example, the relevant files, and the limits of the results. This app uses Qloo's HTTP API directly; the [hackathon kit](https://github.com/qloo/qloo-hackathon-kit) documents separate CLI and MCP starter routes.
+
 ## Run it locally
 
 Requirements: PHP 8.3+, Composer, Node 22+.
@@ -44,7 +48,7 @@ This starts everything: the app on http://localhost:8000, the queue worker (gues
 
 - http://localhost:8000: the welcome page.
 - http://localhost:8000/new: set up your own room by talking to the DJ. It creates the event and opens its host screen.
-- http://localhost:8000/e/{code}/host: a room's host screen, view-only. The link `/new` opens has `?key=` with the event's `host_token`, which adds the **Ask the DJ** box.
+- http://localhost:8000/e/{code}/host: a room's host screen, view-only. The link `/new` opens has `?key=` with the event's `host_token`, which allows playback, track changes, and the **Ask the DJ** box.
 - http://localhost:8000/e/{code}: the guest join page. The QR on the host screen links here. To join from a real phone, run the app on your machine's network address and set `APP_URL` to match.
 
 Sound starts only after a click on **Start the party** (or the play button on a phone), because browsers block autoplay with sound.

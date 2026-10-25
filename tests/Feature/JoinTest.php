@@ -120,6 +120,26 @@ test('the guest page shows how the DJ read each love, then their song and how fa
         ->where('song', ['title' => 'Theirs', 'artist' => 'A2', 'reason' => 'because Maria loves Ozark', 'playing' => false, 'ahead' => 2]));
 });
 
+test('a guest sees the track playing for them before an upcoming blend track', function () {
+    $guest = $this->event->guests()->create(['name' => 'Maria', 'color' => '#ffffff']);
+    $love = $guest->loves()->create(['raw_text' => 'Amsterdam']);
+    $playing = $this->event->setItems()->create([
+        'track_id' => Track::create(['artist' => 'Tems', 'title' => 'Free Mind'])->id,
+        'position' => 1, 'status' => SetItemStatus::Playing, 'reason_guest_id' => $guest->id,
+        'reason_text' => 'because Maria loves Amsterdam', 'reason_love_id' => $love->id,
+    ]);
+    $this->event->setItems()->create([
+        'track_id' => Track::create(['artist' => 'SZA', 'title' => 'Good Days'])->id,
+        'position' => 2, 'status' => SetItemStatus::Queued, 'reason_guest_id' => $guest->id,
+        'reason_text' => 'because Maria loves all three things', 'reason_love_id' => null,
+    ]);
+
+    $this->withCookie('roomtone_guest_JOIN01', (string) $guest->id)
+        ->get('/e/JOIN01/me')->assertInertia(fn (Assert $page) => $page
+        ->where('song.title', $playing->track->title)
+        ->where('song.playing', true));
+});
+
 test('the host screen gets the join link and its QR code', function () {
     $this->get('/e/JOIN01/host')->assertInertia(fn (Assert $page) => $page
         ->where('join.url', url('/e/JOIN01'))

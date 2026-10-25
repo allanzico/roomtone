@@ -226,16 +226,15 @@ export function VideoTile({ style }: { style?: CSSProperties }) {
                             const room = useRoom.getState();
 
                             if (
-                                room.nowPlaying &&
+                                room.nowPlaying?.id === loadedItemId &&
                                 UNAVAILABLE.includes(event.data)
                             ) {
-                                reportUnavailable(
-                                    room.nowPlaying.id,
-                                    event.data,
-                                );
+                                reportUnavailable(loadedItemId, event.data);
                             }
 
-                            room.nextTrack();
+                            if (room.nowPlaying?.id === loadedItemId) {
+                                room.nextTrack();
+                            }
                         },
                         // The browser refused to play with sound: ask for the click again.
                         onAutoplayBlocked: () => useRoom.getState().stop(),

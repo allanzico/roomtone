@@ -18,7 +18,8 @@ use Laravel\Ai\Responses\Data\TextUsage;
  * produced the artist). A pick Qloo rejects as a signal gets one retry with that candidate removed. The searches,
  * and then the insights calls, run at the same time (an insights call takes about 4 s). Last, one more call with
  * every signal of the guest's loves together: Qloo's middle ground between them (the guest's `blend`), which is
- * where the guest's first song comes from. A food is never turned into a city: it is left unread.
+ * where the guest's first song comes from. A food is never turned into a city: it can become a verified Qloo taste
+ * tag, or stay unread.
  */
 class GuestResolver
 {

@@ -19,6 +19,8 @@ type RoomState = {
     clusters: Cluster[];
     guests: Guest[];
     nowPlaying: SetItem | null;
+    /** Items this screen has left, so an older server response cannot rewind playback. */
+    locallyLeftIds: number[];
     queue: SetItem[];
     /** Host's target energy, 1–5. The scene eases towards it. */
     energy: number;
@@ -50,6 +52,7 @@ type RoomState = {
     setAskOpen: (open: boolean) => void;
     addGuest: (guest: Guest) => void;
     nextTrack: () => void;
+    skipUnavailableSet: () => void;
     setEnergy: (energy: number) => void;
     setAudioLevel: (level: number) => void;
     togglePaused: () => void;
@@ -80,6 +83,7 @@ export const useRoom = create<RoomState>()((set) => ({
     clusters: [],
     guests: [],
     nowPlaying: null,
+    locallyLeftIds: [],
     queue: [],
     energy: 3,
     audioLevel: 0,
@@ -104,6 +108,7 @@ export const useRoom = create<RoomState>()((set) => ({
             clusters: props.clusters,
             guests: props.guests,
             nowPlaying: props.nowPlaying,
+            locallyLeftIds: [],
             queue: props.queue,
             energy: clampEnergy(props.event.energy),
             join: props.join,
@@ -115,6 +120,7 @@ export const useRoom = create<RoomState>()((set) => ({
     adoptServer: (props) =>
         set({
             nowPlaying: props.nowPlaying,
+            locallyLeftIds: [],
             queue: props.queue,
             energy: props.nowPlaying
                 ? clampEnergy(props.nowPlaying.energy)
@@ -129,9 +135,9 @@ export const useRoom = create<RoomState>()((set) => ({
             // left. A view-only screen follows the server. Same track: the object stays, so the player does not
             // restart it.
             const keep =
-                state.nowPlaying !== null &&
-                (state.hostKey !== null ||
-                    state.nowPlaying.id === props.nowPlaying?.id);
+                state.hostKey !== null &&
+                props.nowPlaying !== null &&
+                state.locallyLeftIds.includes(props.nowPlaying.id);
             const nowPlaying = keep ? state.nowPlaying : props.nowPlaying;
 
             return {
@@ -158,24 +164,41 @@ export const useRoom = create<RoomState>()((set) => ({
                 : { guests: [...state.guests, guest] },
         ),
 
-    // With the host key the server owns the set and a played track is done. A view-only screen (no key) loops
-    // the played track to the end of the queue so the room never runs dry.
+    // Only the host link drives playback. A view-only screen follows server updates without silently advancing
+    // music that guests' pages cannot hear about.
     nextTrack: () =>
         set((state) => {
+            if (state.hostKey === null) {
+                return {};
+            }
+
             const [next, ...rest] = state.queue;
 
-            if (!next) {
+            return {
+                nowPlaying: next ?? null,
+                // The scene follows the energy arc through each track's energy.
+                energy: next ? clampEnergy(next.energy) : state.energy,
+                queue: rest,
+                locallyLeftIds: state.nowPlaying
+                    ? [...state.locallyLeftIds, state.nowPlaying.id]
+                    : state.locallyLeftIds,
+            };
+        }),
+
+    skipUnavailableSet: () =>
+        set((state) => {
+            if (
+                state.hostKey === null ||
+                state.nowPlaying === null ||
+                [state.nowPlaying, ...state.queue].some((item) => item.videoId)
+            ) {
                 return {};
             }
 
             return {
-                nowPlaying: next,
-                // The scene follows the energy arc through each track's energy.
-                energy: clampEnergy(next.energy),
-                queue:
-                    state.nowPlaying && state.hostKey === null
-                        ? [...rest, state.nowPlaying]
-                        : rest,
+                nowPlaying: null,
+                queue: [],
+                locallyLeftIds: [...state.locallyLeftIds, state.nowPlaying.id],
             };
         }),
 

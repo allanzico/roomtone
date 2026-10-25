@@ -175,6 +175,7 @@ test('when the YouTube quota is used up, tracks are still accepted', function ()
 
     expect(app(SetBuilder::class)->build($this->event)['log'])->toBe(['ok']);
     expect(Track::where('artist', 'Brent Cobb')->sole()->youtube_video_id)->toBeNull();
+    expect($this->event->setItems()->where('status', SetItemStatus::Playing)->exists())->toBeFalse();
 });
 
 test('set target is about 1.2 tracks per guest with results, between 10 and 40', function () {
@@ -223,6 +224,8 @@ test('videos are found after the agent picks: a track with none in its first two
     $result = app(SetBuilder::class)->build($this->event);
 
     expect($result['log'])->toBe(['ok', 'ok', 'no_video'])
+        ->and($result['tracks'])->toBe(1)
+        ->and($result['unserved'])->toBe([$this->jake->id])
         ->and($result['youtube_lookups'])->toBe(2)
         ->and($this->event->setItems()->with('track')->get()->map(fn ($i) => $i->track->artist)->all())->toBe(['Brent Cobb'])
         ->and(Track::where('artist', 'Mariza')->whereNotNull('youtube_checked_at')->count())->toBe(2);

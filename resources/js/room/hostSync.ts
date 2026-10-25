@@ -58,50 +58,102 @@ export async function endParty(): Promise<boolean> {
 
 /**
  * With the host key, tell the server each time the room moves to another track, so set rebuilds and host
- * requests never bring back tracks the room has already heard. Fire and forget: playback never waits on it.
+ * requests never bring back tracks the room has already heard. Reports are serialized so a quick skip cannot
+ * arrive at the server before the preceding track; playback itself never waits on them.
  */
 export function useHostSync(): void {
-    useEffect(
-        () =>
-            useRoom.subscribe((state, prev) => {
-                const item = state.nowPlaying;
+    useEffect(() => {
+        let pending: number | null | undefined;
+        let reporting = false;
+        let closed = false;
 
-                if (
-                    !state.hostKey ||
-                    !item ||
-                    item.id === prev.nowPlaying?.id
-                ) {
-                    return;
+        const report = async () => {
+            if (reporting) {
+                return;
+            }
+
+            reporting = true;
+            while (!closed && pending !== undefined) {
+                const item = pending;
+                pending = undefined;
+                const { hostKey, event } = useRoom.getState();
+
+                if (!hostKey) {
+                    break;
                 }
 
-                void fetch(nowPlaying.url(state.event.code), {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-XSRF-TOKEN': xsrfToken(),
-                    },
-                    body: JSON.stringify({ key: state.hostKey, item: item.id }),
-                })
-                    .then((response) => {
-                        // The server no longer has that item (the set was rebuilt under the screen): follow the server's playing track, so the guests' pages and the screen agree.
-                        if (response.status === 404) {
-                            router.reload({
-                                only: ['nowPlaying', 'queue', 'youtubePaused'],
-                                onSuccess: (page) =>
-                                    useRoom
-                                        .getState()
-                                        .adoptServer(
-                                            page.props as unknown as HostRoomProps,
-                                        ),
-                            });
-                        }
-                    })
-                    .catch(() => {
-                        // Offline for a moment: the next track change sends the state again.
+                try {
+                    const response = await fetch(nowPlaying.url(event.code), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-XSRF-TOKEN': xsrfToken(),
+                        },
+                        body: JSON.stringify({ key: hostKey, item }),
                     });
-            }),
-        [],
-    );
+
+                    if (response.status === 404) {
+                        pending = undefined;
+                        router.reload({
+                            only: ['nowPlaying', 'queue', 'youtubePaused'],
+                            onSuccess: (page) =>
+                                useRoom
+                                    .getState()
+                                    .adoptServer(
+                                        page.props as unknown as HostRoomProps,
+                                    ),
+                        });
+                        break;
+                    }
+
+                    if (response.ok) {
+                        continue;
+                    }
+
+                    if (response.status !== 429 && response.status < 500) {
+                        pending = undefined;
+                        break;
+                    }
+                } catch {
+                    // A brief connection loss should not leave the guest pages on the old title.
+                }
+
+                pending = useRoom.getState().nowPlaying?.id ?? null;
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+            reporting = false;
+        };
+
+        const unsubscribe = useRoom.subscribe((state, prev) => {
+            if (
+                state.hostKey &&
+                state.nowPlaying &&
+                ![state.nowPlaying, ...state.queue].some((item) => item.videoId)
+            ) {
+                state.skipUnavailableSet();
+
+                return;
+            }
+
+            if (
+                !state.hostKey ||
+                state.nowPlaying?.id === prev.nowPlaying?.id
+            ) {
+                return;
+            }
+
+            pending = state.nowPlaying?.id ?? null;
+            void report();
+        });
+
+        // The first state was loaded before this subscription mounted.
+        useRoom.getState().skipUnavailableSet();
+
+        return () => {
+            closed = true;
+            unsubscribe();
+        };
+    }, []);
 }
